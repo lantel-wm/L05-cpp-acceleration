@@ -1,14 +1,11 @@
 import numpy as np
 from numba import jit
 from ensembleFilter import ensembleFilter
-from ..utils.construct_GC_2d import construct_GC_2d
+
 
 class EnSRF(ensembleFilter):
     def __init__(self, params: dict, config: dict, options: dict) -> None:
         super().__init__(params, config, options)
-        
-        if self.localization_type == 'GC':
-            self.CMat = construct_GC_2d(self.localization_value, self.model_size, self.obs_grids)
     
     
     # public methods
@@ -74,9 +71,9 @@ class EnSRF(ensembleFilter):
             gainfact = (hpbht + self.obs_error_var) / hpbht * (1.0 - np.sqrt(self.obs_error_var / (hpbht + self.obs_error_var)))
             pbht = (xprime.T * hxprime) * rn
 
-            if self.localization_type is None:
+            if self.localization_method is None:
                 kfgain = pbht / (hpbht + self.obs_error_var)
-            elif self.localization_type == 'GC':
+            elif self.localization_method == 'GC':
                 Cvect = self.CMat[iobs, :]
                 kfgain = np.multiply(Cvect.T, (pbht / (hpbht + self.obs_error_var)))
             else:

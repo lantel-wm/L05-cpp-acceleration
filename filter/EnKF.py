@@ -1,14 +1,15 @@
 import numpy as np
 from numba import jit
 from ensembleFilter import ensembleFilter
-from ..utils.construct_GC_2d import construct_GC_2d
 
 class EnKF(ensembleFilter):
+    """ Ensemble Kalman Filter
+
+    Inherit:
+        ensembleFilter (ABC): ensemble filter abstract base class
+    """
     def __init__(self, params: dict, config: dict, options: dict) -> None:
         super().__init__(params, config, options)
-        
-        if self.localization_type == 'GC':
-            self.CMat = construct_GC_2d(self.localization_value, self.model_size, self.obs_grids)
     
     
     # public methods
@@ -23,8 +24,13 @@ class EnKF(ensembleFilter):
             np.mat: analysis
         """
         if self.update_method == 'serial_update':
+            # update assimilation step counter
+            self.assimilation_step_counter += 1
             return self.__serial_update(zens, zobs)
+        
         elif self.update_method == 'parallel_update':
+            # update assimilation step counter
+            self.assimilation_step_counter += 1
             return self.__parallel_update(zens, zobs)
         
         
@@ -75,9 +81,9 @@ class EnKF(ensembleFilter):
             pbht = (xprime.T * hxprime) * rn
         
             # localization
-            if self.localization_type is None:
+            if self.localization_method is None:
                 kfgain = pbht / (hpbht + self.obs_error_var)
-            elif self.localization_type == 'GC':
+            elif self.localization_method == 'GC':
                 Cvect = self.CMat[iobs, :]
                 kfgain = np.multiply(Cvect.T, (pbht / (hpbht + self.obs_error_var)))
             else:

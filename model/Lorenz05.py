@@ -1,7 +1,14 @@
-# ----- Lorenz05  -----
-# by Zhongrui Wang, Zhiyu Zhao
-# version: 1.0
-# update: add rtps inf; multiple inf,loc; git repo; allow deflation
+# -*- coding: utf-8 -*-
+
+# Copyright © 2023 Zhongrui Wang & Zhiyu Zhao
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+# Coded by: Zhongrui Wang & Zhiyu Zhao
 
 import os
 import numpy as np
@@ -18,24 +25,33 @@ class Lorenz05:
     """
     # default parameters
     # model parameters
-    model_size = 960  # N
-    forcing = 15.00  # F
-    space_time_scale = 10.00  # b
-    coupling = 3.00  # c
-    smooth_steps = 12  # I
+    model_size = 960                    # N
+    forcing = 15.00                     # F
+    space_time_scale = 10.00            # b
+    coupling = 3.00                     # c
+    smooth_steps = 12                   # I
     K = 32
     delta_t = 0.001
     time_step_days = 0
     time_step_seconds = 432
-    time_steps = 200 * 360  # 360 days(1 day~ 200 time steps)
-    model_number = 3  # 2 scale
+    time_steps = 200 * 360              # 360 days(1 day~ 200 time steps)
+    model_number = 3                    # 2 scale
     
     parameter_list = [
-        'model_size', 'forcing', 'space_time_scale', 'coupling', 'smooth_steps', 
-        'K', 'delta_t', 'time_step_days', 'time_step_seconds', 'time_steps', 'model_number'
+        'model_size',
+        'forcing',
+        'space_time_scale',
+        'coupling',
+        'smooth_steps', 
+        'K',
+        'delta_t',
+        'time_step_days',
+        'time_step_seconds',
+        'time_steps',
+        'model_number',
     ]
     
-    # init method
+    
     def __init__(self, params:dict) -> None:
         """ model parameters initialization
 
@@ -51,33 +67,40 @@ class Lorenz05:
             setattr(self, key, params[key])
             
         # for speed
-        H = int(self.K / 2)
-        K2 = 2 * self.K
-        K4 = 4 * self.K
-        ss2 = 2 * self.smooth_steps
-        sts2 = self.space_time_scale ** 2
+        self.H = int(self.K / 2)
+        self.K2 = 2 * self.K
+        self.K4 = 4 * self.K
+        self.ss2 = 2 * self.smooth_steps
+        self.sts2 = self.space_time_scale ** 2
 
         # smoothing filter
-        alpha = (3.0 * (self.smooth_steps ** 2) + 3.0) / (2.0 * (self.smooth_steps ** 3) + 4.0 * self.smooth_steps)
-        beta = (2.0 * (self.smooth_steps ** 2) + 1.0) / (1.0 * (self.smooth_steps ** 4) + 2.0 * (self.smooth_steps ** 2))
+        self.alpha = (3.0 * (self.smooth_steps ** 2) + 3.0) / (2.0 * (self.smooth_steps ** 3) + 4.0 * self.smooth_steps)
+        self.beta = (2.0 * (self.smooth_steps ** 2) + 1.0) / (1.0 * (self.smooth_steps ** 4) + 2.0 * (self.smooth_steps ** 2))
 
         ri = - self.smooth_steps - 1.0
         j = 0
-        a = np.zeros(2*self.smooth_steps+1)
+        self.a = np.zeros(2*self.smooth_steps+1)
         for i in range(-self.smooth_steps, self.smooth_steps+1):
             ri = ri + 1.0
-            a[j] = alpha - beta * abs(ri)
+            self.a[j] = self.alpha - self.beta * abs(ri)
             j = j + 1
 
-        a[0] = a[0] / 2.00
-        a[2 * self.smooth_steps] = a[2 * self.smooth_steps] / 2.00
-            
+        self.a[0] = self.a[0] / 2.00
+        self.a[2 * self.smooth_steps] = self.a[2 * self.smooth_steps] / 2.00
+        
+        # model advance step counter (istep)
+        self.advance_step_counter = 0
+    
+        
     # public method    
-    def step_L04(self, z:np.mat): 
+    def step_L04(self, z:np.mat) -> np.mat: 
         """ integrate the model for one time step
 
         Args:
             z (np.mat): state of the model
+            
+        Returns:
+            np.mat: state of the model after integration
         """
         z_save = z
         dz = self.__comp_dt_L04(z)  # Compute the first intermediate step
@@ -97,6 +120,11 @@ class Lorenz05:
 
         dzt = z1 / 6.0 + z2 / 3.0 + z3 / 3.0 + z4 / 6.0
         z = z_save + dzt
+        
+        # update model advance step counter
+        self.advance_step_counter += 1
+        
+        return z
     
     # private methods
     def __comp_dt_L04(self, z:np.mat) -> np.mat:
