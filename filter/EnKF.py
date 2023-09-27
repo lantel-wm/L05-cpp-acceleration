@@ -1,5 +1,4 @@
 import numpy as np
-from numba import jit
 from .ensembleFilter import ensembleFilter
 
 class EnKF(ensembleFilter):
@@ -34,8 +33,8 @@ class EnKF(ensembleFilter):
             return self.__parallel_update(zens, zobs)
         
         
-    def inflation(self, zens: np.mat, zens_prior: np.mat) -> np.mat:
-        return super().inflation(zens, zens_prior)
+    def inflation(self, zens: np.mat) -> np.mat:
+        return super().inflation(zens)
         
             
     def calc_current_kalman_gain_matrix(self, zens_inf: np.mat) -> np.mat:

@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-# Copyright © 2023 Zhongrui Wang & Zhiyu Zhao
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-# Coded by: Zhongrui Wang & Zhiyu Zhao
-
-import os
 import numpy as np
 from numba import jit
 
@@ -36,7 +23,7 @@ def calx(x:np.mat, zwrap:np.mat, a:np.mat, model_size:int, ss2:float, smooth_ste
 
 
 @jit(nopython=True)
-def calw(self, wx:np.mat, xwrap:np.mat) -> np.mat:
+def calw(wx:np.mat, xwrap:np.mat, K:int, K4:int, H:int, model_size:int) -> np.mat:
     """ calculate w for model III
 
     Args:
@@ -58,7 +45,8 @@ def calw(self, wx:np.mat, xwrap:np.mat) -> np.mat:
 
 
 @jit(nopython=True)
-def caldz(self, wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat) -> np.mat:
+def caldz(wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat, space_time_scale:float, sts2:float, coupling:float, 
+          forcing:float, K:int, K2:int, K4:int, H:int, model_size:int, model_number:int) -> np.mat:
     """ calculate time derivative of z
 
     Args:
@@ -165,38 +153,44 @@ class Lorenz05:
     
         
     # public method    
-    def step_L04(self, z:np.mat) -> np.mat: 
+    def step_L04(self, zens:np.mat) -> np.mat: 
         """ integrate the model for one time step
 
         Args:
-            z (np.mat): state of the model
+            z (np.mat): ensemble state of the model
             
         Returns:
             np.mat: state of the model after integration
         """
-        z_save = z
-        dz = self.__comp_dt_L04(z)  # Compute the first intermediate step
-        z1 = np.multiply(self.delta_t, dz)
-        z = z_save + z1 / 2.0
-
-        dz = self.__comp_dt_L04(z)  # Compute the second intermediate step
-        z2 = np.multiply(self.delta_t, dz)
-        z = z_save + z2 / 2.0
-
-        dz = self.__comp_dt_L04(z)  # Compute the third intermediate step
-        z3 = np.multiply(self.delta_t, dz)
-        z = z_save + z3
-
-        dz = self.__comp_dt_L04(z)  # Compute fourth intermediate step
-        z4 = np.multiply(self.delta_t, dz)
-
-        dzt = z1 / 6.0 + z2 / 3.0 + z3 / 3.0 + z4 / 6.0
-        z = z_save + dzt
         
+        for iens in range(zens.shape[0]):
+            z = zens[iens, :].T
+            
+            z_save = z
+            dz = self.__comp_dt_L04(z)  # Compute the first intermediate step
+            z1 = np.multiply(self.delta_t, dz)
+            z = z_save + z1 / 2.0
+
+            dz = self.__comp_dt_L04(z)  # Compute the second intermediate step
+            z2 = np.multiply(self.delta_t, dz)
+            z = z_save + z2 / 2.0
+
+            dz = self.__comp_dt_L04(z)  # Compute the third intermediate step
+            z3 = np.multiply(self.delta_t, dz)
+            z = z_save + z3
+
+            dz = self.__comp_dt_L04(z)  # Compute fourth intermediate step
+            z4 = np.multiply(self.delta_t, dz)
+
+            dzt = z1 / 6.0 + z2 / 3.0 + z3 / 3.0 + z4 / 6.0
+            z = z_save + dzt
+            
+            zens[iens, :] = z.T
+            
         # update model advance step counter
         self.advance_step_counter += 1
         
-        return z
+        return zens
     
     # private methods
     def __comp_dt_L04(self, z:np.mat) -> np.mat:
@@ -270,61 +264,16 @@ class Lorenz05:
         return x, y
     
     
-    @jit(nopython=True)
     def __calx(self, x:np.mat, zwrap:np.mat) -> np.mat:
         return calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
     
     
-    @jit(nopython=True)
     def __calw(self, wx:np.mat, xwrap:np.mat) -> np.mat:
-        """ calculate w for model III
-
-        Args:
-            wx (np.mat): store intermediate results
-            xwrap (np.mat): vector to assist calculation
-
-        Returns:
-            np.mat: wx
-        """
-        # ! Calculate the W's
-        for i in range(self.K4, self.K4 + self.model_size):
-            wx[i, 0] = xwrap[i - (-self.H), 0] / 2.00
-            for j in range(- self.H + 1, self.H):
-                wx[i, 0] = wx[i, 0] + xwrap[i - j, 0]
-
-            wx[i, 0] = wx[i, 0] + xwrap[i - self.H, 0] / 2.00
-            wx[i, 0] = wx[i, 0] / self.K
-        return wx
+        return calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
     
     
-    @jit(nopython=True)
     def __caldz(self, wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat) -> np.mat:
-        """ calculate time derivative of z
-
-        Args:
-            wx (np.mat): store intermediate results
-            xwrap (np.mat): vector to assist calculation
-            dz (np.mat): time derivative of z
-            ywrap (np.mat): vector to assist calculation
-
-        Returns:
-            np.mat: dz
-        """ 
-        for i in range(self.K4, self.K4 + self.model_size):
-            xx = wx[i - self.K + (-self.H), 0] * xwrap[i + self.K + (-self.H), 0] / 2.00
-            for j in range(- self.H + 1, self.H):
-                xx = xx + wx[i - self.K + j, 0] * xwrap[i + self.K + j, 0]
-            xx = xx + wx[i - self.K + self.H, 0] * xwrap[i + self.K + self.H, 0] / 2.00
-            xx = - wx[i - self.K2, 0] * wx[i - self.K, 0] + xx / self.K
-
-            if self.model_number == 3:
-                dz[i - self.K4, 0] = xx + self.sts2 * (- ywrap[i - 2, 0] * ywrap[i - 1, 0] + ywrap[i - 1, 0] * ywrap[i + 1, 0])\
-                                + self.coupling * (- ywrap[i - 2, 0] * xwrap[i - 1, 0] + ywrap[i - 1, 0] * xwrap[i + 1, 0]) - xwrap[i, 0]\
-                                - self.space_time_scale * ywrap[i, 0] + self.forcing
-            else:  # must be model II
-                dz[i - self.K4, 0] = xx - xwrap[i, 0] + self.forcing
-
-        return dz
+        return caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
 
     
     
