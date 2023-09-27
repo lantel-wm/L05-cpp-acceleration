@@ -113,6 +113,101 @@ class ensembleFilter(ABC):
         analy_rmse = np.zeros(nobstime + 1)
         prior_spread_rmse = np.zeros(nobstime + 1)
         analy_spread_rmse = np.zeros(nobstime + 1)
+        
+    def inflation(self, zens: np.mat, zens_prior: np.mat) -> np.mat:
+        """ inflation
+
+        Args:
+            zens (np.mat): state ensemble
+            zens_prior (np.mat): prior state ensemble
+
+        Returns:
+            np.mat: inflated state ensemble
+        """
+        if self.inflation_type is None:
+            return zens
+        elif self.inflation_type == 'multiplicative':
+            ens_mean = np.mean(zens, axis=0)
+            ens_prime = zens - ens_mean
+            zens_inf = ens_mean + self.inflation_value * ens_prime
+            return zens_inf
+        elif self.inflation_type == 'RTPS':
+            std_prior = np.std(zens_prior, axis=0, ddof=1)
+            std_analy = np.std(zens, axis=0, ddof=1)
+            ens_mean = np.mean(zens, axis=0)
+            ens_prime = zens - ens_mean
+            zens_inf = ens_mean + np.multiply(ens_prime, (1 + self.inflation_value * (std_prior - std_analy) / std_analy))
+            
+            
+    def calc_current_kalman_gain_matrix(self, zens_inf: np.mat) -> np.mat:
+        """ calculate the current kalman gain matrix
+
+        Args:
+            zens_inf (np.mat): inflated state ensemble
+
+        Returns:
+            np.mat: current kalman gain matrix
+        """
+        rn = 1.0 / (self.ensemble_size - 1)
+        Xprime = zens_inf - np.mean(zens_inf, axis=0)
+        HXens = (self.Hk * zens_inf.T).T
+        HXprime = HXens - np.mean(HXens, axis=0)
+        PbHt = (Xprime.T * HXprime) * rn
+        HPbHt = (HXprime.T * HXprime) * rn
+        K = PbHt * (HPbHt + self.R).I
+        return K
+    
+    def calc_prior_rmse(self, zens_prior: np.mat, zt: np.mat) -> float:
+        """ calculate the prior rmse
+
+        Args:
+            zens_prior (np.mat): prior state ensemble
+            zt (np.mat): ground truth
+
+        Returns:
+            float: current prior rmse
+        """
+        prior_rmse = np.sqrt(np.mean((zt - zens_prior) ** 2, axis=0))
+        return prior_rmse
+    
+    def calc_analysis_rmse(self, zens_analy: np.mat, zt: np.mat) -> float:
+        """ calculate the analysis rmse
+
+        Args:
+            zens_analy (np.mat): posterior state ensemble
+            zt (np.mat): ground truth
+
+        Returns:
+            float: current analysis rmse
+        """
+        analy_rmse = np.sqrt(np.mean((zt - zens_analy) ** 2, axis=0))
+        return analy_rmse
+    
+    def calc_prior_spread_rmse(self, zens_prior: np.mat) -> float:
+        """ calculate the prior spread rmse
+
+        Args:
+            zens_prior (np.mat): prior state ensemble
+
+        Returns:
+            float: current prior spread rmse
+        """
+        prior_spread = np.std(zens_prior, axis=0, ddof=1)
+        prior_spread_rmse = np.sqrt(np.mean(prior_spread ** 2, axis=0))
+        return prior_spread_rmse
+    
+    def calc_analysis_spread_rmse(self, zens_prior: np.mat) -> float:
+        """ calculate the analysis spread rmse
+
+        Args:
+            zens_prior (np.mat): posterior state ensemble
+
+        Returns:
+            float: current analysis spread rmse
+        """
+        analy_spread = np.std(zens_prior, axis=0, ddof=1)
+        analy_spread_rmse = np.sqrt(np.mean(analy_spread ** 2, axis=0))
+        return analy_spread_rmse
     
     @abstractmethod
     def assimalate(self, zens:np.mat, obs:np.mat) -> np.mat:
@@ -124,79 +219,5 @@ class ensembleFilter(ABC):
 
         Returns:
             np.mat: analysis
-        """
-        pass
-    
-    @abstractmethod
-    def inflation(self, zens:np.mat) -> np.mat:
-        """ inflation process
-
-        Args:
-            zens (np.mat): ensemble state
-
-        Returns:
-            np.mat: inflated ensemble state
-        """
-        pass
-    
-    @abstractmethod            
-    def calc_current_kalman_gain_matrix(self, zens_inf:np.mat) -> np.mat:
-        """ calculate the current kalman gain matrix
-
-        Args:
-            zens (np.mat): ensemble state
-
-        Returns:
-            np.mat: kalman gain matrix
-        """
-        pass
-    
-    @abstractmethod
-    def calc_prior_rmse(self, zens_prior:np.mat, zt:np.mat) -> float:
-        """ calculate the prior rmse
-
-        Args:
-            zens (np.mat): ensemble state
-
-        Returns:
-            float: prior rmse
-        """
-        pass
-    
-    @abstractmethod
-    def calc_analysis_rmse(self, zens_analy:np.mat, zt:np.mat) -> float:
-        """ calculate the analysis rmse
-
-        Args:
-            zens (np.mat): ensemble state
-            zt (np.mat): ground truth
-
-        Returns:
-            float: analysis rmse
-        """
-        pass
-    
-    @abstractmethod
-    def calc_prior_spread_rmse(self, zens_analy:np.mat) -> float:
-        """ calculate the prior spread rmse
-
-        Args:
-            zens (np.mat): ensemble state
-            zt (np.mat): ground truth
-
-        Returns:
-            float: prior spread rmse
-        """
-        pass
-    
-    @abstractmethod
-    def calc_analysis_spread_rmse(self, zens_prior:np.mat) -> float:
-        """ calculate the analysis spread rmse
-
-        Args:
-            zens (np.mat): ensemble state
-
-        Returns:
-            float: analysis spread rmse
         """
         pass
