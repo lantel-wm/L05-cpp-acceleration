@@ -10,9 +10,43 @@
 
 # Coded by: Zhongrui Wang & Zhiyu Zhao
 
+import os
 from abc import ABC, abstractmethod
 import numpy as np
 from numba import jit
+
+
+@jit(nopython=True)
+def construct_GC_2d(cut: float, l: int, ylocs: np.mat) -> np.mat:
+    """ construct the GC localization matrix
+    
+    Args:
+        cut (float): localization radius
+        l (int): model size
+        ylocs (np.mat): observation locations
+    
+    Returns:
+        np.mat: GC localization matrix
+    """
+
+    nobs = len(ylocs)
+    V = np.mat(np.zeros((nobs, l)))
+
+    for iobs in range(0, nobs):
+        yloc = ylocs[iobs]
+        for iCut in range(0, l):
+            dist = min(abs(iCut+1 - yloc), abs(iCut+1 - l - yloc), abs(iCut+1 + l - yloc))
+            r = dist / (0.5 * cut)
+
+            if dist >= cut:
+                V[iobs, iCut] = 0.0
+            elif 0.5*cut <= dist < cut:
+                V[iobs, iCut] = r**5 / 12.0 - r**4 / 2.0 + r**3 * 5.0 / 8.0 + r**2 * 5.0 / 3.0 - 5.0 * r + 4.0 - 2.0 / (3.0 * r)
+            else:
+                V[iobs, iCut] = r**5 * (-0.25) + r**4 / 2.0 + r**3 * 5.0/8.0 - r**2 * 5.0/3.0 + 1.0
+
+    return V
+
 
 class ensembleFilter(ABC):
     """ ensemble filter abstract base class
@@ -107,7 +141,7 @@ class ensembleFilter(ABC):
             setattr(self, key, config[key])
             
         for key in options:
-            if key not in self.arguements_list:
+            if key not in self.option_list:
                 raise ValueError(f'Invalid option: {key}')
             setattr(self, key, options[key])
             
@@ -130,7 +164,7 @@ class ensembleFilter(ABC):
         
         # GC localization
         if self.localization_method == 'GC':
-            self.CMat = self.__construct_GC_2d()
+            self.CMat = self.__construct_GC_2d(self)
             
         # array for saving results
         self.zens_prior_series = np.zeros((self.nobstime + 1, self.ensemble_size, self.model_size)) if self.save_prior else None
@@ -182,7 +216,100 @@ class ensembleFilter(ABC):
             ens_prime = zens - ens_mean
             zens_inf = ens_mean + np.multiply(ens_prime, (1 + self.inflation_factor * (std_prior - std_analy) / std_analy))
             
+    
+    def save(self, save_config:dict) -> None:
+        result_save_path = save_config['result_save_path']
+        experiment_name = save_config['experiment_name']
+        data_save_path = save_config['data_save_path']
+        result_save_path = os.path.join(result_save_path, experiment_name)
+        data_save_path = os.path.join(result_save_path, data_save_path)
+        
+        if not os.path.exists(data_save_path):
+            os.makedirs(data_save_path)
+        
+        file_save_type = save_config['file_save_type']
+        if file_save_type == 'npy':
+            if self.save_prior:
+                prior_filename = save_config['prior_filename'] + '.' + file_save_type
+                prior_save_path = os.path.join(data_save_path, prior_filename)
+                np.save(prior_save_path, self.zens_prior_series)
+                
+            if self.save_analysis:
+                analysis_filename = save_config['analysis_filename'] + '.' + file_save_type
+                analysis_save_path = os.path.join(data_save_path, analysis_filename)
+                np.save(analysis_save_path, self.zens_analy_series)
+                
+            if self.save_observation:
+                obs_filename = save_config['obs_filename'] + '.' + file_save_type
+                obs_save_path = os.path.join(data_save_path, obs_filename)
+                np.save(obs_save_path, self.zobs_total)
+                
+            if self.save_truth:
+                truth_filename = save_config['truth_filename'] + '.' + file_save_type
+                truth_save_path = os.path.join(data_save_path, truth_filename)
+                np.save(truth_save_path, self.ztruth_total)
+                
+            if self.save_kalman_gain:
+                kg_filename = save_config['kalman_gain_filename'] + '.' + file_save_type
+                kg_save_path = os.path.join(data_save_path, kg_filename)
+                np.save(kg_save_path, self.kg_series)
+                
+            if self.save_prior_rmse:
+                prior_rmse_filename = save_config['prior_rmse_filename'] + '.' + file_save_type
+                prior_rmse_save_path = os.path.join(data_save_path, prior_rmse_filename)
+                np.save(prior_rmse_save_path, self.prior_rmse_series)
+                
+            if self.save_analysis_rmse:
+                analysis_rmse_filename = save_config['analysis_rmse_filename'] + '.' + file_save_type
+                analysis_rmse_save_path = os.path.join(data_save_path, analysis_rmse_filename)
+                np.save(analysis_rmse_save_path, self.analy_rmse_series)
+                
+            if self.save_prior_spread_rmse:
+                prior_spread_rmse_filename = save_config['prior_spread_rmse_filename'] + '.' + file_save_type
+                prior_spread_rmse_save_path = os.path.join(data_save_path, prior_spread_rmse_filename)
+                np.save(prior_spread_rmse_save_path, self.prior_spread_rmse_series)
+                
+            if self.save_analysis_spread_rmse:
+                analysis_spread_rmse_filename = save_config['analysis_spread_rmse_filename'] + '.' + file_save_type
+                analysis_spread_rmse_save_path = os.path.join(data_save_path, analysis_spread_rmse_filename)
+                np.save(analysis_spread_rmse_save_path, self.analy_spread_rmse_series)
+                
+        else:
+            # TODO: save data in other format
+            pass
             
+            
+    def save_current_state(self, zens_prior:np.mat, zens_analy:np.mat, zens_inf:np.mat, zens_t:np.mat) -> None:
+        """ save current state
+
+        Args:
+            zens_prior (np.mat): prior state ensemble
+            zens_analy (np.mat): posterior state ensemble
+            zens_inf (np.mat): posterior state ensemble after inflation
+            zens_t (np.mat): true state
+        """
+        if self.save_prior:
+            self.zens_prior_series[self.assimilation_step_counter, :, :] = self.zens_prior
+        
+        if self.save_analysis:
+            self.zens_analy_series[self.assimilation_step_counter, :, :] = self.zens_analy
+            
+        if self.save_kalman_gain:
+            self.kg_series[self.assimilation_step_counter, :, :] = self.calc_current_kalman_gain_matrix(zens_inf)
+            
+        if self.save_prior_rmse:
+            self.prior_rmse_series[self.assimilation_step_counter] = self.calc_prior_rmse(zens_prior, zens_t)
+            
+        if self.save_analysis_rmse:
+            self.analy_rmse_series[self.assimilation_step_counter] = self.calc_analysis_rmse(zens_analy, zens_t)
+            
+        if self.save_prior_spread_rmse:
+            self.prior_spread_rmse_series[self.assimilation_step_counter] = self.calc_prior_spread_rmse(zens_prior)
+            
+        if self.save_analysis_spread_rmse:
+            self.analy_spread_rmse_series[self.assimilation_step_counter] = self.calc_analysis_spread_rmse(zens_analy)
+    
+    
     def calc_current_kalman_gain_matrix(self, zens_inf: np.mat) -> np.mat:
         """ calculate the current kalman gain matrix
 
@@ -259,34 +386,8 @@ class ensembleFilter(ABC):
     
     
     # private methods
-    @jit(nopython=True)
     def __construct_GC_2d(self) -> np.mat:
-        """ construct the GC localization matrix
-        
-        Returns:
-            np.mat: GC localization matrix
-        """
-        cut = self.localization_radius
-        l = self.model_size
-        ylocs = self.obs_grids
-
-        nobs = len(ylocs)
-        V = np.mat(np.zeros((nobs, l)))
-
-        for iobs in range(0, nobs):
-            yloc = ylocs[iobs]
-            for iCut in range(0, l):
-                dist = min(abs(iCut+1 - yloc), abs(iCut+1 - l - yloc), abs(iCut+1 + l - yloc))
-                r = dist / (0.5 * cut)
-
-                if dist >= cut:
-                    V[iobs, iCut] = 0.0
-                elif 0.5*cut <= dist < cut:
-                    V[iobs, iCut] = r**5 / 12.0 - r**4 / 2.0 + r**3 * 5.0 / 8.0 + r**2 * 5.0 / 3.0 - 5.0 * r + 4.0 - 2.0 / (3.0 * r)
-                else:
-                    V[iobs, iCut] = r**5 * (-0.25) + r**4 / 2.0 + r**3 * 5.0/8.0 - r**2 * 5.0/3.0 + 1.0
-
-        return V
+        return construct_GC_2d(self.localization_radius, self.model_size, self.obs_grids)
     
     
     def __verbose(self) -> None:

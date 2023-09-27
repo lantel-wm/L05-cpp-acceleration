@@ -1,6 +1,6 @@
 import numpy as np
 from numba import jit
-from ensembleFilter import ensembleFilter
+from .ensembleFilter import ensembleFilter
 
 
 class EnSRF(ensembleFilter):
