@@ -1,9 +1,9 @@
 # assmanager
 
-[![GitHub License](https://img.shields.io/github/license/你的用户名/你的包名)](https://github.com/你的用户名/你的包名/blob/main/LICENSE)
-[![GitHub Issues](https://img.shields.io/github/issues/你的用户名/你的包名)](https://github.com/你的用户名/你的包名/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/你的用户名/你的包名)](https://github.com/你的用户名/你的包名/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/你的用户名/你的包名)](https://github.com/你的用户名/你的包名/network)
+[![GitHub License](https://img.shields.io/github/license/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/blob/main/LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/issues)
+[![GitHub Stars](https://img.shields.io/github/stars/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/network)
 
 Lorenz 05 model数据同化实验框架的Python包。
 
