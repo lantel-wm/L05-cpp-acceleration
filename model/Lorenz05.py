@@ -2,78 +2,6 @@ import numpy as np
 from numba import jit
 
 
-@jit(nopython=True)
-def calx(x:np.mat, zwrap:np.mat, a:np.mat, model_size:int, ss2:float, smooth_steps:float) -> np.mat:
-    """ calculate x for model III
-
-    Args:
-        x (np.mat): large scale activity
-        zwrap (np.mat): vector to assist calculation
-
-    Returns:
-        np.mat: large scale activity
-    """
-    for i in range(ss2, ss2 + model_size):
-        x[i - ss2, 0] = a[0] * zwrap[i + 1 - (- smooth_steps), 0] / 2.00
-        for j in range(- smooth_steps + 1, smooth_steps):
-            x[i - ss2, 0] = x[i - ss2, 0] + a[j + smooth_steps] * zwrap[i + 1 - j, 0]
-        x[i - ss2, 0] = x[i - ss2, 0] + a[2 * smooth_steps] * zwrap[i + 1 - smooth_steps, 0] / 2.00
-    return x
-
-
-
-@jit(nopython=True)
-def calw(wx:np.mat, xwrap:np.mat, K:int, K4:int, H:int, model_size:int) -> np.mat:
-    """ calculate w for model III
-
-    Args:
-        wx (np.mat): store intermediate results
-        xwrap (np.mat): vector to assist calculation
-
-    Returns:
-        np.mat: wx
-    """
-    # ! Calculate the W's
-    for i in range(K4, K4 + model_size):
-        wx[i, 0] = xwrap[i - (-H), 0] / 2.00
-        for j in range(- H + 1, H):
-            wx[i, 0] = wx[i, 0] + xwrap[i - j, 0]
-
-        wx[i, 0] = wx[i, 0] + xwrap[i - H, 0] / 2.00
-        wx[i, 0] = wx[i, 0] / K
-    return wx
-
-
-@jit(nopython=True)
-def caldz(wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat, space_time_scale:float, sts2:float, coupling:float, 
-          forcing:float, K:int, K2:int, K4:int, H:int, model_size:int, model_number:int) -> np.mat:
-    """ calculate time derivative of z
-
-    Args:
-        wx (np.mat): store intermediate results
-        xwrap (np.mat): vector to assist calculation
-        dz (np.mat): time derivative of z
-        ywrap (np.mat): vector to assist calculation
-
-    Returns:
-        np.mat: dz
-    """ 
-    for i in range(K4, K4 + model_size):
-        xx = wx[i - K + (-H), 0] * xwrap[i + K + (-H), 0] / 2.00
-        for j in range(- H + 1, H):
-            xx = xx + wx[i - K + j, 0] * xwrap[i + K + j, 0]
-        xx = xx + wx[i - K + H, 0] * xwrap[i + K + H, 0] / 2.00
-        xx = - wx[i - K2, 0] * wx[i - K, 0] + xx / K
-
-        if model_number == 3:
-            dz[i - K4, 0] = xx + sts2 * (- ywrap[i - 2, 0] * ywrap[i - 1, 0] + ywrap[i - 1, 0] * ywrap[i + 1, 0])\
-                            + coupling * (- ywrap[i - 2, 0] * xwrap[i - 1, 0] + ywrap[i - 1, 0] * xwrap[i + 1, 0]) - xwrap[i, 0]\
-                            - space_time_scale * ywrap[i, 0] + forcing
-        else:  # must be model II
-            dz[i - K4, 0] = xx - xwrap[i, 0] + forcing
-
-    return dz
-
 class Lorenz05:
     """ Lorenz05 model
 
@@ -276,7 +204,73 @@ class Lorenz05:
         return caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
 
     
-    
-    
-    
-    
+@jit(nopython=True)
+def calx(x:np.mat, zwrap:np.mat, a:np.mat, model_size:int, ss2:float, smooth_steps:float) -> np.mat:
+    """ calculate x for model III
+
+    Args:
+        x (np.mat): large scale activity
+        zwrap (np.mat): vector to assist calculation
+
+    Returns:
+        np.mat: large scale activity
+    """
+    for i in range(ss2, ss2 + model_size):
+        x[i - ss2, 0] = a[0] * zwrap[i + 1 - (- smooth_steps), 0] / 2.00
+        for j in range(- smooth_steps + 1, smooth_steps):
+            x[i - ss2, 0] = x[i - ss2, 0] + a[j + smooth_steps] * zwrap[i + 1 - j, 0]
+        x[i - ss2, 0] = x[i - ss2, 0] + a[2 * smooth_steps] * zwrap[i + 1 - smooth_steps, 0] / 2.00
+    return x
+
+
+@jit(nopython=True)
+def calw(wx:np.mat, xwrap:np.mat, K:int, K4:int, H:int, model_size:int) -> np.mat:
+    """ calculate w for model III
+
+    Args:
+        wx (np.mat): store intermediate results
+        xwrap (np.mat): vector to assist calculation
+
+    Returns:
+        np.mat: wx
+    """
+    # ! Calculate the W's
+    for i in range(K4, K4 + model_size):
+        wx[i, 0] = xwrap[i - (-H), 0] / 2.00
+        for j in range(- H + 1, H):
+            wx[i, 0] = wx[i, 0] + xwrap[i - j, 0]
+
+        wx[i, 0] = wx[i, 0] + xwrap[i - H, 0] / 2.00
+        wx[i, 0] = wx[i, 0] / K
+    return wx
+
+
+@jit(nopython=True)
+def caldz(wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat, space_time_scale:float, sts2:float, coupling:float, 
+          forcing:float, K:int, K2:int, K4:int, H:int, model_size:int, model_number:int) -> np.mat:
+    """ calculate time derivative of z
+
+    Args:
+        wx (np.mat): store intermediate results
+        xwrap (np.mat): vector to assist calculation
+        dz (np.mat): time derivative of z
+        ywrap (np.mat): vector to assist calculation
+
+    Returns:
+        np.mat: dz
+    """ 
+    for i in range(K4, K4 + model_size):
+        xx = wx[i - K + (-H), 0] * xwrap[i + K + (-H), 0] / 2.00
+        for j in range(- H + 1, H):
+            xx = xx + wx[i - K + j, 0] * xwrap[i + K + j, 0]
+        xx = xx + wx[i - K + H, 0] * xwrap[i + K + H, 0] / 2.00
+        xx = - wx[i - K2, 0] * wx[i - K, 0] + xx / K
+
+        if model_number == 3:
+            dz[i - K4, 0] = xx + sts2 * (- ywrap[i - 2, 0] * ywrap[i - 1, 0] + ywrap[i - 1, 0] * ywrap[i + 1, 0])\
+                            + coupling * (- ywrap[i - 2, 0] * xwrap[i - 1, 0] + ywrap[i - 1, 0] * xwrap[i + 1, 0]) - xwrap[i, 0]\
+                            - space_time_scale * ywrap[i, 0] + forcing
+        else:  # must be model II
+            dz[i - K4, 0] = xx - xwrap[i, 0] + forcing
+
+    return dz

@@ -16,38 +16,6 @@ import numpy as np
 from numba import jit
 
 
-@jit(nopython=True)
-def construct_GC_2d(cut: float, l: int, ylocs: np.mat) -> np.mat:
-    """ construct the GC localization matrix
-    
-    Args:
-        cut (float): localization radius
-        l (int): model size
-        ylocs (np.mat): observation locations
-    
-    Returns:
-        np.mat: GC localization matrix
-    """
-
-    nobs = len(ylocs)
-    V = np.zeros((nobs, l))
-
-    for iobs in range(0, nobs):
-        yloc = ylocs[iobs]
-        for iCut in range(0, l):
-            dist = min(abs(iCut+1 - yloc), abs(iCut+1 - l - yloc), abs(iCut+1 + l - yloc))
-            r = dist / (0.5 * cut)
-
-            if dist >= cut:
-                V[iobs, iCut] = 0.0
-            elif 0.5*cut <= dist < cut:
-                V[iobs, iCut] = r**5 / 12.0 - r**4 / 2.0 + r**3 * 5.0 / 8.0 + r**2 * 5.0 / 3.0 - 5.0 * r + 4.0 - 2.0 / (3.0 * r)
-            else:
-                V[iobs, iCut] = r**5 * (-0.25) + r**4 / 2.0 + r**3 * 5.0/8.0 - r**2 * 5.0/3.0 + 1.0
-
-    return V
-
-
 class ensembleFilter(ABC):
     """ ensemble filter abstract base class
 
@@ -73,7 +41,7 @@ class ensembleFilter(ABC):
     update_method = 'serial_update'     # 'serial_update', 'parallel_update'
     inflation_method = 'multiplicative' # None, 'multiplicative', 'RTPS', 'RTPP', 'CNN'
     inflation_factor = 1.01             # None, float
-    inflation_sequence = 'after DA'    # 'before DA', 'after DA'
+    inflation_sequence = 'after_DA'     # 'before_DA', 'after_DA'
     localization_method = 'GC'          # None, 'GC', 'CNN'
     localization_radius = 240           # None, float
     
@@ -230,16 +198,14 @@ class ensembleFilter(ABC):
             # return zens_inf
             
     
-    def save(self, save_config:dict, ztruth_total:np.mat, zobs_total:np.mat) -> None:
-        result_save_path = save_config['result_save_path']
-        experiment_name = save_config['experiment_name']
+    def save(self, save_config:dict, result_save_path: str, ztruth_total:np.mat, zobs_total:np.mat) -> None:
         data_save_path = save_config['data_save_path']
-        result_save_path = os.path.join(result_save_path, experiment_name)
         data_save_path = os.path.join(result_save_path, data_save_path)
         
+        print(data_save_path)
         if not os.path.exists(data_save_path):
             os.makedirs(data_save_path)
-        
+            
         file_save_type = save_config['file_save_type']
         if file_save_type == 'npy':
             if self.save_prior_ensemble:
@@ -424,3 +390,35 @@ class ensembleFilter(ABC):
             np.mat: analysis
         """
         pass
+
+
+@jit(nopython=True)
+def construct_GC_2d(cut: float, l: int, ylocs: np.mat) -> np.mat:
+    """ construct the GC localization matrix
+    
+    Args:
+        cut (float): localization radius
+        l (int): model size
+        ylocs (np.mat): observation locations
+    
+    Returns:
+        np.mat: GC localization matrix
+    """
+
+    nobs = len(ylocs)
+    V = np.zeros((nobs, l))
+
+    for iobs in range(0, nobs):
+        yloc = ylocs[iobs]
+        for iCut in range(0, l):
+            dist = min(abs(iCut+1 - yloc), abs(iCut+1 - l - yloc), abs(iCut+1 + l - yloc))
+            r = dist / (0.5 * cut)
+
+            if dist >= cut:
+                V[iobs, iCut] = 0.0
+            elif 0.5*cut <= dist < cut:
+                V[iobs, iCut] = r**5 / 12.0 - r**4 / 2.0 + r**3 * 5.0 / 8.0 + r**2 * 5.0 / 3.0 - 5.0 * r + 4.0 - 2.0 / (3.0 * r)
+            else:
+                V[iobs, iCut] = r**5 * (-0.25) + r**4 / 2.0 + r**3 * 5.0/8.0 - r**2 * 5.0/3.0 + 1.0
+
+    return V
