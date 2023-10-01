@@ -15,15 +15,13 @@ setup(
         'Programming Language :: Python :: 3.10',
     ],
     python_requires='>=3.8',
-    data_files=[('', ['assmanager/*.ini'])],
+    # data_files=[('', ['assmanager/*.ini'])],
     install_requires=[
-        'numpy',
-        'matplotlib',
-        'numba',
+        'numba>=0.58.0',
+        'numpy>=1.23.5',
         'configparser',
-        'scikit-learn',
-        'tqdm',
-        'numba',
+        'scipy>=1.11.3',
+        'tqdm>=4.66.1',
     ]
     
 )
