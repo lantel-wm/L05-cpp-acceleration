@@ -196,14 +196,14 @@ configs = []
 
 for inf in inflation_values:
     for seq in inflation_sequences:
-        config.append(
+        configs.append(
             {
                 'DA_config': {
                     'inflation_factor': inf,
                     'inflation_sequence': seq,
                 },
 
-                'Experment_option': {
+                'Experiment_option': {
                     'experiment_name': f'inf_{inf}_{seq}'
                 }
             }
@@ -213,3 +213,56 @@ ams = [AssManager(config) for config in configs]
 for am in ams:
     am.run()
 ```
+
+# 扩展
+
+本框架支持扩展DA算法，inflation算法和localization算法。
+
+## inflation
+
+打开 `filter/ensembleFilter.py`，找到ensembleFilter类中的inflation成员函数，新增一个if即可。
+
+``` python
+# filter/ensembleFilter.py
+
+def inflation(self, zens: np.mat) -> np.mat:
+    """ inflation
+
+    Args:
+        zens (np.mat): state ensemble
+        zens_prior (np.mat): prior state ensemble
+
+    Returns:
+        np.mat: inflated state ensemble
+    """
+    if self.inflation_method is None:
+        return zens
+    
+    elif self.inflation_method == 'multiplicative':
+        ens_mean = np.mean(zens, axis=0)
+        ens_prime = zens - ens_mean
+        zens_inf = ens_mean + self.inflation_factor * ens_prime
+        return zens_inf
+    
+    elif self.inflation_method == 'your inflation method':
+        # some calculations here
+        # if you need previous prior and analysis mean, you can access them by self.prior_mean and self.analy_mean
+        zens_inf = ...
+        return zens_inf
+```
+
+## localization
+
+打开 `filter/ensembleFilter.py`，找到construct_GC_2d函数，在下面新增一个计算localization 矩阵 $\rho$ 的函数。
+
+然后修改ensembleFilter的__get_localization_matrix方法，将里面的construct_GC_2d方法改为新添加的localization方法即可。
+
+## DA method
+
+在 `filter/` 目录下将 `EnKF.py` 复制并改名为 `your_DA_method.py` 文件，修改类名为 yourDAMethid，然后只需要修改__serial_update和__parallel_update即可。
+
+
+# 作者
+
+- 赵志宇
+- zyzh@smail.nju.edu.cn

@@ -138,7 +138,7 @@ class ensembleFilter(ABC):
         
         # GC localization
         if self.localization_method == 'GC':
-            self.CMat = np.mat(self.__construct_GC_2d())
+            self.CMat = np.mat(self.__get_localization_matrix())
             
         # array for saving results
         self.zens_prior = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_prior_ensemble else None
@@ -373,7 +373,7 @@ class ensembleFilter(ABC):
     
     
     # private methods
-    def __construct_GC_2d(self) -> np.mat:
+    def __get_localization_matrix(self) -> np.mat:
         return construct_GC_2d(self.localization_radius, self.model_size, self.obs_grids)
         
     

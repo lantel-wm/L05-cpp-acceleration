@@ -1,15 +1,52 @@
-import os
-import json
-import numpy as np
-import configparser
-from scipy.io import loadmat
 import ast
+import configparser
+import json
+import multiprocessing
 import operator as op
-from tqdm import tqdm
+import os
 
+import numpy as np
 from filter.EnKF import EnKF
 from filter.EnSRF import EnSRF
 from model.Lorenz05 import Lorenz05
+# from model.Lorenz05_gpu import Lorenz05_gpu
+from numba import njit, prange
+from scipy.io import loadmat
+from tqdm import tqdm
+
+
+def step_forward(zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> None:
+    """ step forward the model
+
+    Args:
+        zens (np.mat): state ensemble
+        obs_freq_timestep (int): observation frequency in time step
+        model (Lorenz05): model
+    """
+    for _ in prange(obs_freq_timestep):
+        zens = model.step_L04(zens)
+
+
+def parallel_step_forward(pool: multiprocessing.Pool, num_process:int, zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> None:
+    """ step forward the model in parallel
+
+    Args:
+        zens (np.mat): state ensemble
+        obs_freq_timestep (int): observation frequency in time step
+        model (Lorenz05): model
+    """
+    zens_blocks = np.array_split(zens, num_process, axis=0)
+    res = []
+    for zens_block in zens_blocks:
+        res.append(pool.apply_async(step_forward, args=(zens_block, obs_freq_timestep, model)))
+        
+    for r, zens_block in zip(res, zens_blocks):
+        zens_block = r.get()
+        
+    
+    zens = np.concatenate(zens_blocks, axis=0)
+    
+    return zens
 
 
 class AssManager:
@@ -125,7 +162,10 @@ class AssManager:
         """        
         if self.verbose:
             self.__show_run_info()
-        
+            
+        num_process = multiprocessing.cpu_count()
+        pool = multiprocessing.Pool(num_process)
+    
         # DA cycles
         loop = tqdm(range(self.filter.nobstime), desc=self.config['Experiment_option']['experiment_name'])
         for iassim in loop:
@@ -148,9 +188,12 @@ class AssManager:
             self.filter.save_current_state(zens_prior, zens_analy, zens_inf, z_truth)
             
             # advance model
+            # parallel_step_forward(pool, num_process, self.zens, self.filter.obs_freq_timestep, self.model)
             for _ in range(self.filter.obs_freq_timestep):
                 self.zens = self.model.step_L04(self.zens)
         
+        pool.close()
+        pool.join()
         self.result_save_path = os.path.join(self.config['Experiment_option']['result_save_path'], self.config['Experiment_option']['experiment_name'])
         print(f'\n\nSaving experiment result in {self.result_save_path}...\n\n')
         if not os.path.exists(self.result_save_path):
@@ -279,17 +322,18 @@ class AssManager:
         
     def __show_logo(self) -> None:
         print('''
-|---------------------------------------------------------------------------------------|
-|    _                          _____ _____                    _   _                    |
-|   | |                        |  _  |  ___|                  | | | |                   |
-|   | | ___  _ __ ___ _ __  ___| |/' |___ \ ______ _ __  _   _| |_| |__   ___  _ __     |
-|   | |/ _ \| '__/ _ \ '_ \|_  /  /| |   \ \______| '_ \| | | | __| '_ \ / _ \| '_ \    |
-|   | | (_) | | |  __/ | | |/ /\ |_/ /\__/ /      | |_) | |_| | |_| | | | (_) | | | |   |
-|   |_|\___/|_|  \___|_| |_/___|\___/\____/       | .__/ \__, |\__|_| |_|\___/|_| |_|   |
-|                                                 | |     __/ |                         |
-|                                                 |_|    |___/                          |
-|                                                                                       |
-|---------------------------------------------------------------------------------------|                                           
+              
+|-------------------------------------------------------------|
+|                                                             |
+|     _            __  __                                     |
+|    / \   ___ ___|  \/  | __ _ _ __   __ _  __ _  ___ _ __   |
+|   / _ \ / __/ __| |\/| |/ _` | '_ \ / _` |/ _` |/ _ \ '__|  |
+|  / ___ \\\__ \__ \ |  | | (_| | | | | (_| | (_| |  __/ |     |
+| /_/   \_\___/___/_|  |_|\__,_|_| |_|\__,_|\__, |\___|_|     |
+|                                           |___/             |
+|                                                             |
+|-------------------------------------------------------------|
+
               ''')
         
     def __show_run_info(self) -> None:
@@ -300,7 +344,7 @@ class AssManager:
         print(json.dumps(self.config['DA_config'], indent=4))
         print('\n\n Initial state: \n\n')
         print(json.dumps(self.initial_state, indent=4))
-        print('\n\n-----------------------------------------------------------------------------------------\n\n')
+        print('\n\n-------------------------------------------------------------\n\n')
         # while True:
         #     print('Start experiment with the above configurations? (y/n)')
         #     choice = input()
@@ -323,7 +367,7 @@ class AssManager:
         with open(os.path.join(self.result_save_path, 'config.ini'), 'w') as f:
             config.write(f)
         
-        print('\n\n-----------------------------------------------------------------------------------------\n\n')
+        print('\n\n-------------------------------------------------------------n\n')
         print(f'Experiment result saved in {self.result_save_path}.\n')
         print('\n\n👍 Experiment finished.\n\n')
 
@@ -380,16 +424,43 @@ def increment_path(fpath: str):
      
                 
 if __name__ == '__main__':
-    config = {
-        'model_params': {
-            'forcing': 20.0,
-            'time_steps': 50,
-        },
-        'DA_params': {
-            'time_steps': 50,
-        }
-    }
-    am = AssManager(config)
-    am.run()
+
+    inflation_values = [1.0, 1.03, 1.05]
+    inflation_sequences = ['before_DA', 'after_DA']
+
+    configs = []
+
+    for inf in inflation_values:
+        for seq in inflation_sequences:
+            configs.append(
+                {
+                    'model_params': {
+                        'forcing': 16.0,
+                        'time_steps': 200 * 450,
+                    },
+                    
+                    'DA_params': {
+                        'time_steps': 200 * 450,
+                    },
+                    
+                    'DA_config': {
+                        'ensemble_size': 40,
+                        'inflation_factor': inf,
+                        'inflation_sequence': seq,
+                    },
+                    
+                    'DA_option': {
+                        'save_kalman_gain': True,
+                    },
+
+                    'Experiment_option': {
+                        'experiment_name': f'inf_{inf}_{seq}'
+                    }
+                }
+            )
+    
+    ams = [AssManager(config) for config in configs]
+    for am in ams:
+        am.run()
         
         
