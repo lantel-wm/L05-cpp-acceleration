@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit
+from numba import jit, njit, prange
 
 
 class Lorenz05:
@@ -80,7 +80,7 @@ class Lorenz05:
         self.advance_step_counter = 0
     
         
-    # public method    
+    # public method   
     def step_L04(self, zens:np.mat) -> np.mat: 
         """ integrate the model for one time step
 
@@ -202,8 +202,8 @@ class Lorenz05:
     
     def __caldz(self, wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat) -> np.mat:
         return caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
-
     
+
 @jit(nopython=True)
 def calx(x:np.mat, zwrap:np.mat, a:np.mat, model_size:int, ss2:float, smooth_steps:float) -> np.mat:
     """ calculate x for model III

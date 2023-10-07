@@ -89,6 +89,7 @@ class ensembleFilter(ABC):
         'save_analysis_rmse',
         'save_prior_spread_rmse',
         'save_analysis_spread_rmse',
+        "file_save_option",
     ]
     
     def __init__(self, params:dict, config:dict, options:dict) -> None:
@@ -141,27 +142,28 @@ class ensembleFilter(ABC):
             self.CMat = np.mat(self.__get_localization_matrix())
             
         # array for saving results
-        self.zens_prior = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_prior_ensemble else None
-        
-        self.prior = np.zeros((self.nobstime, self.model_size))
-        
-        self.zens_analy = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_analysis_ensemble else None
-        
-        self.analy = np.zeros((self.nobstime, self.model_size))
+        if self.file_save_option == 'single_file':
+            self.zens_prior = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_prior_ensemble else None
             
-        self.kg_series = np.zeros((self.nobstime, self.model_size, self.nobsgrid)) if self.save_kalman_gain else None
-        
-        self.prior_rmse = np.zeros(self.nobstime) if self.save_prior_rmse else None
-        
-        self.analy_rmse = np.zeros(self.nobstime) if self.save_analysis_rmse else None
+            self.prior = np.zeros((self.nobstime, self.model_size))
             
-        self.prior_spread = np.zeros((self.nobstime, self.model_size))
-        
-        self.analy_spread = np.zeros((self.nobstime, self.model_size))
-        
-        self.prior_spread_rmse = np.zeros(self.nobstime) if self.save_prior_spread_rmse else None
+            self.zens_analy = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_analysis_ensemble else None
             
-        self.analy_spread_rmse = np.zeros(self.nobstime) if self.save_analysis_spread_rmse else None
+            self.analy = np.zeros((self.nobstime, self.model_size))
+                
+            self.kg_series = np.zeros((self.nobstime, self.model_size, self.nobsgrid)) if self.save_kalman_gain else None
+            
+            self.prior_rmse = np.zeros(self.nobstime) if self.save_prior_rmse else None
+            
+            self.analy_rmse = np.zeros(self.nobstime) if self.save_analysis_rmse else None
+                
+            self.prior_spread = np.zeros((self.nobstime, self.model_size))
+            
+            self.analy_spread = np.zeros((self.nobstime, self.model_size))
+            
+            self.prior_spread_rmse = np.zeros(self.nobstime) if self.save_prior_spread_rmse else None
+                
+            self.analy_spread_rmse = np.zeros(self.nobstime) if self.save_analysis_spread_rmse else None
             
         # assimilation step counter (iassim)
         self.assimilation_step_counter = 0
@@ -208,72 +210,73 @@ class ensembleFilter(ABC):
             
         file_save_type = save_config['file_save_type']
         if file_save_type == 'npy':
-            if self.save_prior_ensemble:
-                prior_filename = save_config['prior_ensemble_filename'] + '.' + file_save_type
-                prior_save_path = os.path.join(data_save_path, prior_filename)
-                np.save(prior_save_path, self.zens_prior)
-                
-            if self.save_prior_mean:
-                prior_mean_filename = save_config['prior_mean_filename'] + '.' + file_save_type
-                prior_mean_save_path = os.path.join(data_save_path, prior_mean_filename)
-                np.save(prior_mean_save_path, self.prior)
-                
-                
-            if self.save_analysis_ensemble:
-                analysis_filename = save_config['analysis_ensemble_filename'] + '.' + file_save_type
-                analysis_save_path = os.path.join(data_save_path, analysis_filename)
-                np.save(analysis_save_path, self.zens_analy)
-                
-            if self.save_analysis_mean:
-                analysis_mean_filename = save_config['analysis_mean_filename'] + '.' + file_save_type
-                analysis_mean_save_path = os.path.join(data_save_path, analysis_mean_filename)
-                np.save(analysis_mean_save_path, self.analy)
-                
-            if self.save_observation:
-                obs_filename = save_config['obs_filename'] + '.' + file_save_type
-                obs_save_path = os.path.join(data_save_path, obs_filename)
-                np.save(obs_save_path, zobs_total)
-                
-            if self.save_truth:
-                truth_filename = save_config['truth_filename'] + '.' + file_save_type
-                truth_save_path = os.path.join(data_save_path, truth_filename)
-                np.save(truth_save_path, ztruth_total)
-                
-            if self.save_kalman_gain:
-                kg_filename = save_config['kalman_gain_filename'] + '.' + file_save_type
-                kg_save_path = os.path.join(data_save_path, kg_filename)
-                np.save(kg_save_path, self.kg_series)
-                
-            if self.save_prior_rmse:
-                self.prior_rmse = np.sqrt(np.mean(np.square(self.prior - ztruth_total), axis=1))
-                prior_rmse_filename = save_config['prior_rmse_filename'] + '.' + file_save_type
-                prior_rmse_save_path = os.path.join(data_save_path, prior_rmse_filename)
-                np.save(prior_rmse_save_path, self.prior_rmse)
-                
-            if self.save_analysis_rmse:
-                self.analy_rmse = np.sqrt(np.mean(np.square(self.analy - ztruth_total), axis=1))
-                analysis_rmse_filename = save_config['analysis_rmse_filename'] + '.' + file_save_type
-                analysis_rmse_save_path = os.path.join(data_save_path, analysis_rmse_filename)
-                np.save(analysis_rmse_save_path, self.analy_rmse)
-                
-            if self.save_prior_spread_rmse:
-                self.prior_spread_rmse = np.sqrt(np.mean(np.square(self.prior_spread), axis=1))
-                prior_spread_rmse_filename = save_config['prior_spread_rmse_filename'] + '.' + file_save_type
-                prior_spread_rmse_save_path = os.path.join(data_save_path, prior_spread_rmse_filename)
-                np.save(prior_spread_rmse_save_path, self.prior_spread_rmse)
-                
-            if self.save_analysis_spread_rmse:
-                self.analy_spread_rmse = np.sqrt(np.mean(np.square(self.analy_spread), axis=1))
-                analysis_spread_rmse_filename = save_config['analysis_spread_rmse_filename'] + '.' + file_save_type
-                analysis_spread_rmse_save_path = os.path.join(data_save_path, analysis_spread_rmse_filename)
-                np.save(analysis_spread_rmse_save_path, self.analy_spread_rmse)
-                
+            if self.file_save_option == 'single_file':
+                if self.save_prior_ensemble:
+                    prior_filename = save_config['prior_ensemble_filename'] + '.' + file_save_type
+                    prior_save_path = os.path.join(data_save_path, prior_filename)
+                    np.save(prior_save_path, self.zens_prior)
+                    
+                if self.save_prior_mean:
+                    prior_mean_filename = save_config['prior_mean_filename'] + '.' + file_save_type
+                    prior_mean_save_path = os.path.join(data_save_path, prior_mean_filename)
+                    np.save(prior_mean_save_path, self.prior)
+                    
+                    
+                if self.save_analysis_ensemble:
+                    analysis_filename = save_config['analysis_ensemble_filename'] + '.' + file_save_type
+                    analysis_save_path = os.path.join(data_save_path, analysis_filename)
+                    np.save(analysis_save_path, self.zens_analy)
+                    
+                if self.save_analysis_mean:
+                    analysis_mean_filename = save_config['analysis_mean_filename'] + '.' + file_save_type
+                    analysis_mean_save_path = os.path.join(data_save_path, analysis_mean_filename)
+                    np.save(analysis_mean_save_path, self.analy)
+                    
+                if self.save_observation:
+                    obs_filename = save_config['obs_filename'] + '.' + file_save_type
+                    obs_save_path = os.path.join(data_save_path, obs_filename)
+                    np.save(obs_save_path, zobs_total)
+                    
+                if self.save_truth:
+                    truth_filename = save_config['truth_filename'] + '.' + file_save_type
+                    truth_save_path = os.path.join(data_save_path, truth_filename)
+                    np.save(truth_save_path, ztruth_total)
+                    
+                if self.save_kalman_gain:
+                    kg_filename = save_config['kalman_gain_filename'] + '.' + file_save_type
+                    kg_save_path = os.path.join(data_save_path, kg_filename)
+                    np.save(kg_save_path, self.kg_series)
+                    
+                if self.save_prior_rmse:
+                    self.prior_rmse = np.sqrt(np.mean(np.square(self.prior - ztruth_total), axis=1))
+                    prior_rmse_filename = save_config['prior_rmse_filename'] + '.' + file_save_type
+                    prior_rmse_save_path = os.path.join(data_save_path, prior_rmse_filename)
+                    np.save(prior_rmse_save_path, self.prior_rmse)
+                    
+                if self.save_analysis_rmse:
+                    self.analy_rmse = np.sqrt(np.mean(np.square(self.analy - ztruth_total), axis=1))
+                    analysis_rmse_filename = save_config['analysis_rmse_filename'] + '.' + file_save_type
+                    analysis_rmse_save_path = os.path.join(data_save_path, analysis_rmse_filename)
+                    np.save(analysis_rmse_save_path, self.analy_rmse)
+                    
+                if self.save_prior_spread_rmse:
+                    self.prior_spread_rmse = np.sqrt(np.mean(np.square(self.prior_spread), axis=1))
+                    prior_spread_rmse_filename = save_config['prior_spread_rmse_filename'] + '.' + file_save_type
+                    prior_spread_rmse_save_path = os.path.join(data_save_path, prior_spread_rmse_filename)
+                    np.save(prior_spread_rmse_save_path, self.prior_spread_rmse)
+                    
+                if self.save_analysis_spread_rmse:
+                    self.analy_spread_rmse = np.sqrt(np.mean(np.square(self.analy_spread), axis=1))
+                    analysis_spread_rmse_filename = save_config['analysis_spread_rmse_filename'] + '.' + file_save_type
+                    analysis_spread_rmse_save_path = os.path.join(data_save_path, analysis_spread_rmse_filename)
+                    np.save(analysis_spread_rmse_save_path, self.analy_spread_rmse)
+                    
         else:
             # TODO: save data in other format
             pass
             
             
-    def save_current_state(self, zens_prior:np.mat, zens_analy:np.mat, zens_inf:np.mat, z_truth:np.mat) -> None:
+    def save_current_state(self, zens_prior:np.mat, zens_analy:np.mat, z_truth:np.mat) -> None:
         """ save current state
 
         Args:
@@ -289,15 +292,65 @@ class ensembleFilter(ABC):
             self.zens_analy[self.assimilation_step_counter - 1, :, :] = zens_analy
             
         if self.save_kalman_gain:
-            self.kg_series[self.assimilation_step_counter - 1, :, :] = self.calc_current_kalman_gain_matrix(zens_inf)
+            self.kg_series[self.assimilation_step_counter - 1, :, :] = self.calc_current_kalman_gain_matrix(zens_prior)
 
         self.analy[self.assimilation_step_counter - 1, :] = np.mean(zens_analy, axis=0)
         self.prior[self.assimilation_step_counter - 1, :] = np.mean(zens_prior, axis=0)
         
         self.prior_spread[self.assimilation_step_counter - 1, :] = np.std(zens_prior, axis=0, ddof=1)
         self.analy_spread[self.assimilation_step_counter - 1, :] = np.std(zens_analy, axis=0, ddof=1)
+    
+    def save_single_npy_file(self, data_type: str, data_save_path: str, data: np.mat):
+        """ save data to single npy file
+
+        Args:
+            file_type (str): 'prior_ensemble', 'prior_mean', etc.
+            data_save_path (str): data save path
+        """
+        file_save_path = os.path.join(data_save_path, data_type)
+        if not os.path.exists(file_save_path):
+            os.makedirs(file_save_path)
+        data_filename = f'{data_type}_{self.assimilation_step_counter - 1}.npy'
+        file_save_path = os.path.join(file_save_path, data_filename)
+        np.save(file_save_path, data)
+    
+    def save_current_state_file(self, zens_prior: np.mat, zens_analy: np.mat, z_truth: np.mat, zobs: np.mat, data_save_path: str) -> None:
+        """ save current state to file
+
+        Args:
+            zens_prior (np.mat): prior state ensemble
+            zens_analy (np.mat): posterior state ensemble
+            z_truth (np.mat): current true state
+            zobs (np.mat): current observations
+            data_save_path (str): data save path
+        """
+        if self.save_prior_ensemble:
+            self.save_single_npy_file('prior_ensemble', data_save_path, zens_prior)
+            
+        if self.save_analysis_ensemble:
+            self.save_single_npy_file('analy_ensemble', data_save_path, zens_analy)
+            
+        if self.save_truth:
+            self.save_single_npy_file('truth', data_save_path, z_truth)
         
-    def calc_current_kalman_gain_matrix(self, zens_inf: np.mat) -> np.mat:
+        if self.save_observation:
+            self.save_single_npy_file('observation', data_save_path, zobs)
+            
+        if self.save_kalman_gain:
+            K = self.calc_current_kalman_gain_matrix(zens_prior)
+            self.save_single_npy_file('kg', data_save_path, K)
+        
+        
+        self.save_single_npy_file('prior_mean', data_save_path, np.mean(zens_prior, axis=0))
+        self.save_single_npy_file('analy_mean', data_save_path, np.mean(zens_analy, axis=0))
+        self.save_single_npy_file('prior_rmse', data_save_path, self.calc_prior_rmse(zens_prior, z_truth))
+        self.save_single_npy_file('analy_rmse', data_save_path, self.calc_analysis_rmse(zens_analy, z_truth))
+        self.save_single_npy_file('prior_spread_rmse', data_save_path, self.calc_prior_spread_rmse(zens_prior))
+        self.save_single_npy_file('analy_spread_rmse', data_save_path, self.calc_analysis_spread_rmse(zens_analy))
+        
+            
+        
+    def calc_current_kalman_gain_matrix(self, zens: np.mat) -> np.mat:
         """ calculate the current kalman gain matrix
 
         Args:
@@ -306,9 +359,10 @@ class ensembleFilter(ABC):
         Returns:
             np.mat: current kalman gain matrix
         """
+        
         rn = 1.0 / (self.ensemble_size - 1)
-        Xprime = zens_inf - np.mean(zens_inf, axis=0)
-        HXens = (self.Hk * zens_inf.T).T
+        Xprime = zens - np.mean(zens, axis=0)
+        HXens = (self.Hk * zens.T).T
         HXprime = HXens - np.mean(HXens, axis=0)
         PbHt = (Xprime.T * HXprime) * rn
         HPbHt = (HXprime.T * HXprime) * rn

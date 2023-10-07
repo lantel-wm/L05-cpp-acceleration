@@ -6,25 +6,28 @@ import operator as op
 import os
 
 import numpy as np
-from filter.EnKF import EnKF
-from filter.EnSRF import EnSRF
-from model.Lorenz05 import Lorenz05
+from filter import EnKF
+from filter import EnSRF
+from model import Lorenz05
 # from model.Lorenz05_gpu import Lorenz05_gpu
-from numba import njit, prange
 from scipy.io import loadmat
 from tqdm import tqdm
+from functools import partial
 
 
-def step_forward(zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> None:
+def step_forward(zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> np.mat:
     """ step forward the model
 
     Args:
         zens (np.mat): state ensemble
         obs_freq_timestep (int): observation frequency in time step
         model (Lorenz05): model
+        
     """
-    for _ in prange(obs_freq_timestep):
+    
+    for _ in range(obs_freq_timestep):
         zens = model.step_L04(zens)
+    return zens
 
 
 def parallel_step_forward(pool: multiprocessing.Pool, num_process:int, zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> None:
@@ -35,15 +38,10 @@ def parallel_step_forward(pool: multiprocessing.Pool, num_process:int, zens: np.
         obs_freq_timestep (int): observation frequency in time step
         model (Lorenz05): model
     """
+
     zens_blocks = np.array_split(zens, num_process, axis=0)
-    res = []
-    for zens_block in zens_blocks:
-        res.append(pool.apply_async(step_forward, args=(zens_block, obs_freq_timestep, model)))
-        
-    for r, zens_block in zip(res, zens_blocks):
-        zens_block = r.get()
-        
-    
+    partial_step_forward = partial(step_forward, obs_freq_timestep=obs_freq_timestep, model=model)
+    pool.map_async(partial_step_forward, zens_blocks)
     zens = np.concatenate(zens_blocks, axis=0)
     
     return zens
@@ -52,6 +50,83 @@ def parallel_step_forward(pool: multiprocessing.Pool, num_process:int, zens: np.
 class AssManager:
     """ Data assimilation manager
     """
+    
+    default_config = {
+        "model_params": {
+            "model_size": 960,
+            "forcing": 15.0,
+            "space_time_scale": 10.0,
+            "coupling": 3.0,
+            "smooth_steps": 12,
+            "K": 32,
+            "delta_t": 0.001,
+            "time_step_days": 0,
+            "time_step_seconds": 432,
+            "time_steps": 200 * 360,
+            "model_number": 3
+        },
+        "DA_params": {
+            "model_size": 960,
+            "time_steps": 200 * 360,
+            "obs_density": 4,
+            "obs_freq_timestep": 50,
+            "obs_error_var": 1.0
+        },
+        "DA_config": {
+            "ensemble_size": 40,
+            "filter": "EnKF",
+            "update_method": "serial_update",
+            "inflation_method": "multiplicative",
+            "inflation_factor": 1.01,
+            "inflation_sequence": "before_DA",
+            "localization_method": "GC",
+            "localization_radius": 240
+        },
+        "DA_option": {
+            "save_prior_ensemble": False,
+            "save_prior_mean": True,
+            "save_analysis_ensemble": False,
+            "save_analysis_mean": True,
+            "save_observation": True,
+            "save_truth": False,
+            "save_kalman_gain": False,
+            "save_prior_rmse": True,
+            "save_analysis_rmse": True,
+            "save_prior_spread_rmse": True,
+            "save_analysis_spread_rmse": True,
+            "file_save_option": "single_file",
+        },
+        "Input_file_paths": {
+            "ics_path": "/data1/zrwang/data/ics_ms3_from_zt1year_sz3001.mat",
+            "ics_key": "zics_total1",
+            "obs_path": "/data1/zrwang/data/obs_ms3_err1_240s_6h_5y.mat",
+            "obs_key": "zobs_total",
+            "truth_path": "/data1/zrwang/data/zt_5year_ms3_6h.mat",
+            "truth_key": "zens_times"
+        },
+        "IC_data": {
+            "ics_imem_beg": 1
+        },
+        "Experiment_option": {
+            "verbose": True,
+            "experiment_name": "inf_1.0_before_DA",
+            "result_save_path": "/data1/zyzhao/L05_experiments",
+            "data_save_path": "data",
+            "file_save_type": "npy",
+            "prior_ensemble_filename": "zens_prior",
+            "prior_mean_filename": "prior",
+            "analysis_ensemble_filename": "zens_analy",
+            "analysis_mean_filename": "analy",
+            "obs_filename": "zobs",
+            "truth_filename": "ztruth",
+            "kalman_gain_filename": "kg",
+            "prior_rmse_filename": "prior_rmse",
+            "analysis_rmse_filename": "analy_rmse",
+            "prior_spread_rmse_filename": "prior_spread_rmse",
+            "analysis_spread_rmse_filename": "analy_spread_rmse"
+        }
+    }
+    
     def __init__(self, config = 'config.ini') -> None:
         
         # load config file
@@ -88,6 +163,7 @@ class AssManager:
                 for option in config[section]:
                     self.config[section][option] = config[section][option]
         
+        # print(json.dumps(self.config, indent=4))
         self.verbose = self.config['Experiment_option']['verbose']
         if self.verbose:
             self.__show_logo()
@@ -114,7 +190,6 @@ class AssManager:
         
         # load model and filter
         self.model = Lorenz05(self.config['model_params'])
-        
         self.filter = self.__select_filter(self.config['DA_config']['filter'])
         
         # load data
@@ -130,14 +205,16 @@ class AssManager:
         
         # set observations
         time_steps = self.config['model_params']['time_steps']
-        obs_freq_step = self.config['DA_params']['obs_freq_timestep']
+        obs_freq_timestep = self.config['DA_params']['obs_freq_timestep']
+        # iobs_beg = int(23 * 360 * 200 / obs_freq_timestep)
         iobs_beg = 0
-        iobs_end = int(time_steps / obs_freq_step) + 1
+        iobs_end = iobs_beg + int(time_steps / obs_freq_timestep) + 1
         self.zobs_total = np.mat(zobs_total[iobs_beg:iobs_end, :]) # obs
         
         # set truth
+        # itruth_beg = int(23 * 360 * 200 / obs_freq_timestep)
         itruth_beg = 0
-        itruth_end = int(time_steps / obs_freq_step) + 1
+        itruth_end = itruth_beg + int(time_steps / obs_freq_timestep) + 1
         self.ztruth_total = np.mat(ztruth_total[itruth_beg:itruth_end, :]) # truth
         
         self.zt = self.ztruth_total * self.filter.Hk.T
@@ -156,6 +233,9 @@ class AssManager:
             'obs_grids': str(self.filter.obs_grids[:5].T.tolist()) + '...' + str(self.filter.obs_grids[-5:].T.tolist()),
         }
         
+        # load file save option
+        self.file_save_option = self.config['DA_option']['file_save_option']
+        
     # public methods
     def run(self) -> None:
         """ run the experiment
@@ -163,8 +243,20 @@ class AssManager:
         if self.verbose:
             self.__show_run_info()
             
-        num_process = multiprocessing.cpu_count()
-        pool = multiprocessing.Pool(num_process)
+        # num_process = self.config['DA_config']['ensemble_size']
+        # num_process = multiprocessing.cpu_count()
+        # pool = multiprocessing.Pool(num_process)
+        
+        if self.file_save_option == 'multiple_files':
+            self.result_save_path = os.path.join(self.config['Experiment_option']['result_save_path'], self.config['Experiment_option']['experiment_name'])
+            print(f'\n\nSaving experiment result in {self.result_save_path}...\n\n')
+            if not os.path.exists(self.result_save_path):
+                os.makedirs(self.result_save_path)
+            else:
+                print(f'Warning: {self.result_save_path} already exists, incrementing path...\n\n')
+                self.result_save_path = increment_path(self.result_save_path)
+                print(f'Incremented path to {self.result_save_path}\n\n')
+            self.__save_config()
     
         # DA cycles
         loop = tqdm(range(self.filter.nobstime), desc=self.config['Experiment_option']['experiment_name'])
@@ -185,26 +277,35 @@ class AssManager:
                 self.zens = zens_inf
             
             # save data
-            self.filter.save_current_state(zens_prior, zens_analy, zens_inf, z_truth)
+            if self.file_save_option == 'single_file':
+                self.filter.save_current_state(zens_prior, zens_analy, z_truth)
+                
+            elif self.file_save_option == 'multiple_files':
+                self.filter.save_current_state_file(zens_prior, zens_analy, z_truth, zobs, self.result_save_path)
+    
             
             # advance model
             # parallel_step_forward(pool, num_process, self.zens, self.filter.obs_freq_timestep, self.model)
             for _ in range(self.filter.obs_freq_timestep):
                 self.zens = self.model.step_L04(self.zens)
         
-        pool.close()
-        pool.join()
-        self.result_save_path = os.path.join(self.config['Experiment_option']['result_save_path'], self.config['Experiment_option']['experiment_name'])
-        print(f'\n\nSaving experiment result in {self.result_save_path}...\n\n')
-        if not os.path.exists(self.result_save_path):
-            os.makedirs(self.result_save_path)
-        else:
-            print(f'Warning: {self.result_save_path} already exists, incrementing path...\n\n')
-            self.result_save_path = increment_path(self.result_save_path)
-            print(f'Incremented path to {self.result_save_path}\n\n')
+        # pool.close()
+        # pool.join()
+        
+        if self.file_save_option == 'single_file':
+            self.result_save_path = os.path.join(self.config['Experiment_option']['result_save_path'], self.config['Experiment_option']['experiment_name'])
+            print(f'\n\nSaving experiment result in {self.result_save_path}...\n\n')
+            if not os.path.exists(self.result_save_path):
+                os.makedirs(self.result_save_path)
+            else:
+                print(f'Warning: {self.result_save_path} already exists, incrementing path...\n\n')
+                self.result_save_path = increment_path(self.result_save_path)
+                print(f'Incremented path to {self.result_save_path}\n\n')
             
-        self.filter.save(self.config['Experiment_option'], self.result_save_path,  self.ztruth_total, self.zobs_total)
-        self.__save_config()
+            self.filter.save(self.config['Experiment_option'], self.result_save_path,  self.ztruth_total, self.zobs_total)
+            self.__save_config()
+            
+        self.__done()
         
         
     # private methods
@@ -219,16 +320,16 @@ class AssManager:
             ValueError: Invalid section: _section_ in _config_
             ValueError: Invalid option: _option_ in section _section_ of _config_
         """
-        template = configparser.ConfigParser()
-        template.read('template.ini')
+        # template = configparser.ConfigParser()
+        # template.read('template.ini')
         
-        template_sections = template.sections()
+        template_sections = self.default_config.keys()
         
-        for section in conpar.sections():
+        for section in self.config.keys():
             if section not in template_sections:
                 raise ValueError(f'Invalid section: {section} in {config}')
             
-            template_options = template.options(section)
+            template_options = self.default_config[section].keys()
             for option in conpar.options(section):
                 if option not in template_options:
                     raise ValueError(f'Invalid option: {option} in section {section} of {config}')
@@ -244,16 +345,16 @@ class AssManager:
             ValueError: Invalid section: _section_ in _config_
             ValueError: Invalid option: _option_ in section _section_ of _config_
         """
-        template = configparser.ConfigParser()
-        template.read('template.ini')
+        # template = configparser.ConfigParser()
+        # template.read('template.ini')
         
-        template_sections = template.sections()
+        template_sections = self.default_config.keys()
         
         for section in config:
             if section not in template_sections:
                 raise ValueError(f'Invalid section: {section}')
             
-            template_options = template.options(section)
+            template_options = self.default_config[section].keys()
             for option in config[section]:
                 if option not in template_options:
                     raise ValueError(f'Invalid option: {option} in section {section} of config dict')
@@ -366,14 +467,14 @@ class AssManager:
     
         with open(os.path.join(self.result_save_path, 'config.ini'), 'w') as f:
             config.write(f)
-        
+
+    def __done(self):
         print('\n\n-------------------------------------------------------------n\n')
         print(f'Experiment result saved in {self.result_save_path}.\n')
         print('\n\n👍 Experiment finished.\n\n')
 
-
 operators = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
-             ast.Div: op.truediv, ast.Pow: op.pow, ast.BitXor: op.xor,
+             ast.Pow: op.pow, ast.BitXor: op.xor,
              ast.USub: op.neg}
 
 
@@ -425,8 +526,8 @@ def increment_path(fpath: str):
                 
 if __name__ == '__main__':
 
-    inflation_values = [1.0, 1.03, 1.05]
-    inflation_sequences = ['before_DA', 'after_DA']
+    inflation_values = [1.01]
+    inflation_sequences = ['before_DA']
 
     configs = []
 
@@ -436,25 +537,29 @@ if __name__ == '__main__':
                 {
                     'model_params': {
                         'forcing': 16.0,
-                        'time_steps': 200 * 450,
+                        'time_steps': 200 * 360 * 5,
                     },
                     
                     'DA_params': {
-                        'time_steps': 200 * 450,
+                        'time_steps': 200 * 360 * 5,
                     },
                     
                     'DA_config': {
-                        'ensemble_size': 40,
+                        'ensemble_size': 2000,
                         'inflation_factor': inf,
                         'inflation_sequence': seq,
                     },
                     
                     'DA_option': {
                         'save_kalman_gain': True,
+                        'save_prior_ensemble': True,
+                        'save_analysis_ensemble': True,
+                        'file_save_option': 'multiple_files',
                     },
 
                     'Experiment_option': {
-                        'experiment_name': f'inf_{inf}_{seq}'
+                        'experiment_name': f'inf_{inf}_{seq}_sz2000_5y',
+                        'result_save_path': '/mnt/pve_nfs/zyzhao/L05_experiments',
                     }
                 }
             )
