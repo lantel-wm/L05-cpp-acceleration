@@ -18,7 +18,7 @@ assmanager对Lorenz 05 model和DA过程进行了封装，具有高易用性和�
 
 ## 安装
 
-使用以下命令安装 `lorenz05-python`：
+使用以下命令安装 `assmanager`：
 
 ``` bash
 python setup.py sdist bdist_wheel
