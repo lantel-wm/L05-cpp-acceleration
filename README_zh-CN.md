@@ -1,38 +1,37 @@
 # assmanager
 
-[简体中文](./README_zh-CN.md)
+[English](./README.md)
 
 [![GitHub License](https://img.shields.io/github/license/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/blob/main/LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/network)
 
-Python package for data assimilation experiments with the Lorenz 05 model.
+Lorenz 05 model数据同化实验框架的Python包。
 
-## Features
+## 特性
 
-assmanager encapsulates the Lorenz 05 model and data assimilation processes, offering high usability and extensibility.
+assmanager对Lorenz 05 model和DA过程进行了封装，具有高易用性和高可扩展性。
 
-- Supports defining experiment parameters using either ini files or Python dictionaries for easy configuration of multiple experiments.
-- Each experiment's results and parameters are saved in a separate folder for easy replication.
-- Modular design for easy addition of new data assimilation methods and inflation/localization schemes.
-- Numba acceleration for the integration process of the Lorenz 05 model for fast execution.
+- 支持使用ini文件或python字典定义实验参数，方便进行多组实验
+- 每次实验结果和实验参数单独保存在一个文件夹，易于复现
+- 模块化设计，易于添加新的DA方式和inflation，localization方案
+- 对Lorenz 05 model的积分过程进行了numba加速，运行速度快
 
-## Installation
+## 安装
 
-Install `assmanager` using the following command:
+使用以下命令安装 `assmanager`：
 
 ``` bash
 python setup.py install
 ```
 
-To uninstall `assmanager`, use:
-
+卸载`assmanager`：
 ``` bash
 pip uninstall assmanager
 ```
 
-## Quick Start
+## 快速开始
 
 
 ``` python
@@ -42,15 +41,15 @@ am = AssManager()
 am.run()
 ```
 
-Running the above code will perform a data assimilation experiment with default parameters for the Lorenz 05 model.
+运行以上代码将进行一次默认参数的Lorenz 05 model的同化实验。
 
-## Usage
+## 用法
 
-First, you need to set experiment parameters. Assmanager supports setting experiment parameters using Python dictionaries or ini configuration files.
+首先需要设置实验参数，assmanager支持使用python字典或ini配置文件进行实验参数配置。
 
-### Setting Experiment Parameters
+### 设置实验参数
 
-When using a dictionary, the structure passed to AssManager is as follows:
+使用字典时，传入AssManager的字典结构如下：
 
 ``` python
 config = {
@@ -91,23 +90,23 @@ config = {
 }
 ```
 
-Instantiate AssManager with the config:
+实例化AssManager时传入config即可：
 
 ``` python
 am = AssManager(config)
 ```
 
 
-When using an ini configuration file, first edit the ini configuration file and then pass the ini file directory when instantiating AssManager:
+使用ini配置文件时，首先需要编辑ini配置文件，然后在实例化AssManager时传入ini文件目录即可。
 
 ``` python
 config_path = './config.ini'
 am = AssManager(config_path)
 ```
 
-### Default Experiment Parameters and Meanings
+### 默认实验参数及含义
 
-When no custom parameter configuration is provided, assmanager will use the default config.ini file with the following content:
+当不传入任何自定义的参数配置时，assmanager将使用默认的`config.ini`文件，内容如下：
 
 ``` ini
 [model_params]
@@ -183,17 +182,16 @@ prior_spread_rmse_filename = prior_spread_rmse
 analysis_spread_rmse_filename = analy_spread_rmse
 ```
 
-The parameter configuration is divided into seven major sections:
+参数配置分为7个大模块：
+- **model_params**: Lorenz 05 model的参数设置
+- **DA_params**: 数据同化用到的外部参数设置，包括积分总步数，观测密度，观测频率等
+- **DA_config**: 数据同化内部参数设置，包括ensemble size，使用的数据同化算法，inflation和localization设置等
+- **DA_option**: 数据保存开关，可以详细设置需要保存哪些数据，包括ensemble mean, kalman gain, rmse等
+- **Input_file_paths**: 外部数据读取设置，包括初始场，观测数据，真实数据的文件目录
+- **IC_data**: 设置初始场包含哪些ensemble member
+- **Experiment_option**: 实验名称，实验保存目录，数据保存格式，文件名设置
 
-- **model_params**: Configuration of parameters for the Lorenz 05 model.
-- **DA_params**: External parameter settings used for data assimilation, including the total number of integration steps, observation density, observation frequency, and more.
-- **DA_config**: Internal parameter settings for data assimilation, including ensemble size, data assimilation algorithm, inflation, and localization settings.
-- **DA_option**: Data saving switches to specify which data to save, including ensemble mean, Kalman gain, RMSE, and more.
-- **Input_file_paths**: Configuration for reading external data, such as initial conditions, observation data, and ground truth data file directories.
-- **IC_data**: Configuration for specifying which ensemble members are included in the initial conditions.
-- **Experiment_option**: Experiment name, experiment save directory, data save format, and file name settings.
-
-### Running Multiple Experiments
+### 进行多组实验
 
 ``` python
 from assmanager import AssManager
@@ -223,13 +221,13 @@ for am in ams:
     am.run()
 ```
 
-## Extensions
+## 扩展
 
-This framework supports the extension of data assimilation (DA) algorithms, inflation methods, and localization methods.
+本框架支持扩展DA算法，inflation算法和localization算法。
 
 ### inflation
 
-To add a new inflation method, open `filter/ensembleFilter.py`, find the `inflation` function within the `ensembleFilter` class, and add an additional `if` statement for your new method:
+打开 `filter/ensembleFilter.py`，找到ensembleFilter类中的inflation成员函数，新增一个if即可。
 
 ``` python
 # filter/ensembleFilter.py
@@ -262,18 +260,20 @@ def inflation(self, zens: np.mat) -> np.mat:
 
 ### localization
 
-To add a new localization method, open `filter/ensembleFilter.py`, find the `construct_GC_2d function`, create a new function to compute the localization matrix ρ, and modify the `__get_localization_matrix` method in the `ensembleFilter` class to use your new localization method.
+打开 `filter/ensembleFilter.py`，找到construct_GC_2d函数，在下面新增一个计算localization 矩阵 $\rho$ 的函数。
+
+然后修改ensembleFilter的__get_localization_matrix方法，将里面的construct_GC_2d方法改为新添加的localization方法即可。
 
 ### DA method
 
-To add a new DA method, copy the `EnKF.py` file in the filter/ directory and rename it to `your_DA_method.py`. Modify the class name to `yourDAMethod`, and then make changes to the `__serial_update` and `__parallel_update` methods.
+在 `filter/` 目录下将 `EnKF.py` 复制并改名为 `your_DA_method.py` 文件，修改类名为 yourDAMethid，然后只需要修改__serial_update和__parallel_update即可。
 
 
-## Author
+## 作者
 
 - Zhiyu Zhao
 - zyzh@smail.nju.edu.cn
 
 
-## Acknowledgments
-[Zhongrui Wang](https://github.com/zhongruiw) provided the L05 Python code with Numba acceleration and the DA program.
+## 感谢
+[Zhongrui Wang](https://github.com/zhongruiw) 提供了使用numba加速的 L05 python 代码以及DA程序。
