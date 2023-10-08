@@ -269,5 +269,5 @@ def inflation(self, zens: np.mat) -> np.mat:
 
 # 作者
 
-- 赵志宇
+- Zhiyu Zhao
 - zyzh@smail.nju.edu.cn
