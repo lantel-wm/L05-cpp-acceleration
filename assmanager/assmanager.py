@@ -6,9 +6,9 @@ import operator as op
 import os
 
 import numpy as np
-from filter import EnKF
-from filter import EnSRF
-from model import Lorenz05
+from .filter import EnKF
+from .filter import EnSRF
+from .model import Lorenz05
 # from model.Lorenz05_gpu import Lorenz05_gpu
 from scipy.io import loadmat
 from tqdm import tqdm
@@ -525,47 +525,5 @@ def increment_path(fpath: str):
      
                 
 if __name__ == '__main__':
-
-    inflation_values = [1.01]
-    inflation_sequences = ['before_DA']
-
-    configs = []
-
-    for inf in inflation_values:
-        for seq in inflation_sequences:
-            configs.append(
-                {
-                    'model_params': {
-                        'forcing': 16.0,
-                        'time_steps': 200 * 360 * 5,
-                    },
-                    
-                    'DA_params': {
-                        'time_steps': 200 * 360 * 5,
-                    },
-                    
-                    'DA_config': {
-                        'ensemble_size': 2000,
-                        'inflation_factor': inf,
-                        'inflation_sequence': seq,
-                    },
-                    
-                    'DA_option': {
-                        'save_kalman_gain': True,
-                        'save_prior_ensemble': True,
-                        'save_analysis_ensemble': True,
-                        'file_save_option': 'multiple_files',
-                    },
-
-                    'Experiment_option': {
-                        'experiment_name': f'inf_{inf}_{seq}_sz2000_5y',
-                        'result_save_path': '/mnt/pve_nfs/zyzhao/L05_experiments',
-                    }
-                }
-            )
-    
-    ams = [AssManager(config) for config in configs]
-    for am in ams:
-        am.run()
-        
+    pass
         
