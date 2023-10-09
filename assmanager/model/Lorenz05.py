@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit, njit, prange
+from .step_L04 import cpu
 
 
 class Lorenz05:
@@ -193,15 +194,18 @@ class Lorenz05:
     
     
     def __calx(self, x:np.mat, zwrap:np.mat) -> np.mat:
-        return calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
+        # return calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
+        return cpu.calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
     
     
     def __calw(self, wx:np.mat, xwrap:np.mat) -> np.mat:
-        return calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
+        # return calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
+        return cpu.calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
     
     
     def __caldz(self, wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat) -> np.mat:
-        return caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
+        # return caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
+        return cpu.caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
     
 
 @jit(nopython=True)

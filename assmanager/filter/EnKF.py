@@ -69,6 +69,10 @@ class EnKF(ensembleFilter):
             np.mat: analysis
         """
         rn = 1.0 / (self.ensemble_size - 1)
+        
+        # perturb observations
+        obs_p = np.random.normal(0., np.sqrt(self.obs_error_var), (self.ensemble_size, self.nobsgrid))
+        obs = zobs + obs_p
 
         for iobs in range(self.nobsgrid):
             xmean = np.mean(zens, axis=0)  # 1xn
@@ -89,7 +93,7 @@ class EnKF(ensembleFilter):
                 # TODO: other localization methods
                 kfgain = pbht / (hpbht + self.obs_error_var)
 
-            inc = (kfgain * (zobs[:,iobs] - hxens).T).T
+            inc = (kfgain * (obs[:,iobs] - hxens).T).T
 
             zens = zens + inc
 

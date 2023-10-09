@@ -6,9 +6,9 @@ import operator as op
 import os
 
 import numpy as np
-from .filter import EnKF
-from .filter import EnSRF
-from .model import Lorenz05
+from filter import EnKF
+from filter import EnSRF
+from model import Lorenz05
 # from model.Lorenz05_gpu import Lorenz05_gpu
 from scipy.io import loadmat
 from tqdm import tqdm
@@ -19,6 +19,7 @@ def step_forward(zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> np.ma
     """ step forward the model
 
     Args:
+        
         zens (np.mat): state ensemble
         obs_freq_timestep (int): observation frequency in time step
         model (Lorenz05): model
@@ -235,6 +236,8 @@ class AssManager:
         
         # load file save option
         self.file_save_option = self.config['DA_option']['file_save_option']
+        if self.file_save_option not in ['single_file', 'multiple_files']:
+            raise ValueError(f'Invalid file save option "{self.file_save_option}", must be "single_file" or "multiple_files"')
         
     # public methods
     def run(self) -> None:
@@ -402,7 +405,7 @@ class AssManager:
                 yield key, value     
     
                 
-    def __select_filter(self, filter_name:str) -> EnKF:
+    def __select_filter(self, filter_name:str):
         """ select the filter
 
         Args:

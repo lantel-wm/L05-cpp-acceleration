@@ -1,8 +1,10 @@
 from assmanager import AssManager
 
-inflation_values = [1.00, 1.01]
+inflation_values = [1.0, 1.01]
 inflation_sequences = ['before_DA']
 ensemble_size = 40
+forcing = 15
+time_steps = 200 * 360 * 5
 configs = []
 
 for inf in inflation_values:
@@ -10,18 +12,19 @@ for inf in inflation_values:
         configs.append(
             {
                 'model_params': {
-                    'forcing': 15.0,
-                    'time_steps': 200 * 360 * 5,
+                    'forcing': forcing,
+                    'time_steps': time_steps,
                 },
                 
                 'DA_params': {
-                    'time_steps': 200 * 360 * 5,
+                    'time_steps': time_steps,
                 },
                 
                 'DA_config': {
                     'ensemble_size': ensemble_size,
                     'inflation_factor': inf,
                     'inflation_sequence': seq,
+                    'filter': 'EnSRF',
                 },
                 
                 'DA_option': {
@@ -32,7 +35,7 @@ for inf in inflation_values:
                 },
 
                 'Experiment_option': {
-                    'experiment_name': f'F15_inf_{inf}_{seq}_sz{ensemble_size}_5y',
+                    'experiment_name': f'EnSRF_F{forcing}_inf_{inf}_{seq}_sz{ensemble_size}_5y_cpptest',
                     'result_save_path': '/mnt/pve_nfs/zyzhao/L05_experiments',
                 }
             }
@@ -41,4 +44,3 @@ for inf in inflation_values:
 ams = [AssManager(config) for config in configs]
 for am in ams:
     am.run()
-    
