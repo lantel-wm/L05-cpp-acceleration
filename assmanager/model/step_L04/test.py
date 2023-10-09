@@ -1,9 +1,11 @@
 import sys
 sys.path.append('..')
-import cpu
-import gpu
+from cpu import cpu
+from gpu import gpu
 from Lorenz05 import Lorenz05
 from Lorenz05 import calx, calw, caldz
+from Lorenz05_gpu import Lorenz05_gpu
+# from Lorenz05_gpu import calx, calw, caldz
 import numpy as np
 import time
 
@@ -70,17 +72,45 @@ def test_caldz():
 
 def test_calx_gpu():
     params = {}
-    model = Lorenz05(params)
+    model = Lorenz05_gpu(params)
     
-    ensemble_size = 40
+    ensemble_size = 2048
     zens = np.mat(np.random.randn(ensemble_size, model.model_size))
     zens_wrap = np.concatenate([zens[:, (model.model_size - model.ss2 - 1): model.model_size], zens, zens[:, 0: model.ss2]], axis=1)
     xens = np.mat(np.zeros((ensemble_size, model.model_size)))
     
     t1 = time.time()
+    xens1 = calx(xens, zens_wrap, model.a, model.model_size, model.ss2, model.smooth_steps)
+    print(time.time() - t1)
+    
+    t2 = time.time()
+    xens2 = gpu.calx(xens, zens_wrap, model.a, model.model_size, model.ss2, model.smooth_steps)
+    print(time.time() - t2)
+    
+    print((xens1 == xens2).T)
+
+def test_calw_gpu():
+    params = {}
+    model = Lorenz05_gpu(params)
+    
+    ensemble_size = 2048
+    wxens = np.mat(np.random.randn(ensemble_size, model.model_size + model.K4 * 2))
+    xens = np.mat(np.random.randn(ensemble_size, model.model_size))
+    xens_wrap = np.concatenate([xens[:, (model.model_size - model.K4 - 1): model.model_size], xens, xens[:, 0: model.K4]], axis=1)
+    
+    t1 = time.time()
+    wxens1 = calw(wxens, xens_wrap, model.K, model.K4, model.H, model.model_size)
+    print(time.time() - t1)
+    
+    t2 = time.time()
+    wxens2 = gpu.calw(wxens, xens_wrap, model.K, model.K4, model.H, model.model_size)
+    print(time.time() - t2)
+    
+    print((wxens1 == wxens2).T)
 
     
 if __name__ == '__main__':
-    test_calx()
-    test_calw()
-    test_caldz()
+    # test_calx()
+    # test_calw()
+    # test_caldz()
+    test_calx_gpu()
