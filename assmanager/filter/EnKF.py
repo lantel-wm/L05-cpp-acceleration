@@ -25,12 +25,17 @@ class EnKF(ensembleFilter):
         if self.update_method == 'serial_update':
             # update assimilation step counter
             self.assimilation_step_counter += 1
-            return self.__serial_update(zens, zobs)
+            
+            # perturb observations
+            obs_p = np.random.normal(0., np.sqrt(self.obs_error_var), (self.ensemble_size, self.nobsgrid))
+            obs = zobs + obs_p
+            
+            return self._serial_update(zens, obs)
         
         elif self.update_method == 'parallel_update':
             # update assimilation step counter
             self.assimilation_step_counter += 1
-            return self.__parallel_update(zens, zobs)
+            return self._parallel_update(zens, zobs)
         
         
     def inflation(self, zens: np.mat) -> np.mat:
@@ -58,7 +63,7 @@ class EnKF(ensembleFilter):
     
         
     # private methods
-    def __serial_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
+    def _serial_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
         """ EnKF serial update
 
         Args:
@@ -69,11 +74,7 @@ class EnKF(ensembleFilter):
             np.mat: analysis
         """
         rn = 1.0 / (self.ensemble_size - 1)
-        
-        # perturb observations
-        obs_p = np.random.normal(0., np.sqrt(self.obs_error_var), (self.ensemble_size, self.nobsgrid))
-        obs = zobs + obs_p
-
+    
         for iobs in range(self.nobsgrid):
             xmean = np.mean(zens, axis=0)  # 1xn
             xprime = zens - xmean
@@ -93,14 +94,14 @@ class EnKF(ensembleFilter):
                 # TODO: other localization methods
                 kfgain = pbht / (hpbht + self.obs_error_var)
 
-            inc = (kfgain * (obs[:,iobs] - hxens).T).T
+            inc = (kfgain * (zobs[:,iobs] - hxens).T).T
 
             zens = zens + inc
 
         return zens
     
     
-    def __parallel_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
+    def _parallel_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
         """ parallel update
 
         Args:

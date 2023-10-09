@@ -31,7 +31,7 @@ for inf in inflation_values:
                     'save_kalman_gain': True,
                     'save_prior_ensemble': True,
                     'save_analysis_ensemble': True,
-                    'file_save_option': 'single_file',
+                    'file_save_option': 'multiple_files',
                 },
 
                 'Experiment_option': {

@@ -57,6 +57,7 @@ class ensembleFilter(ABC):
     save_analysis_rmse = True           # save analysis rmse with time
     save_prior_spread_rmse = True       # save prior spread rmse with time
     save_analysis_spread_rmse = True    # save analysis spread rmse with time
+    file_save_option = 'single_file'    # 'single_file', 'multiple_files'
     
     parameter_list = [
         'model_size',
