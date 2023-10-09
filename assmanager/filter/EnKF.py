@@ -30,12 +30,12 @@ class EnKF(ensembleFilter):
             obs_p = np.random.normal(0., np.sqrt(self.obs_error_var), (self.ensemble_size, self.nobsgrid))
             obs = zobs + obs_p
             
-            return self._serial_update(zens, obs)
+            return self.__serial_update(zens, obs)
         
         elif self.update_method == 'parallel_update':
             # update assimilation step counter
             self.assimilation_step_counter += 1
-            return self._parallel_update(zens, zobs)
+            return self.__parallel_update(zens, zobs)
         
         
     def inflation(self, zens: np.mat) -> np.mat:
@@ -63,7 +63,7 @@ class EnKF(ensembleFilter):
     
         
     # private methods
-    def _serial_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
+    def __serial_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
         """ EnKF serial update
 
         Args:
@@ -101,7 +101,7 @@ class EnKF(ensembleFilter):
         return zens
     
     
-    def _parallel_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
+    def __parallel_update(self, zens:np.mat, zobs:np.mat) -> np.mat:
         """ parallel update
 
         Args:

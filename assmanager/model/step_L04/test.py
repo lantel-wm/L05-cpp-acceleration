@@ -1,6 +1,7 @@
 import sys
 sys.path.append('..')
 import cpu
+import gpu
 from Lorenz05 import Lorenz05
 from Lorenz05 import calx, calw, caldz
 import numpy as np
@@ -65,7 +66,19 @@ def test_caldz():
     print(time.time() - t2)
     
     print((dz1 == dz2).T)
+
+
+def test_calx_gpu():
+    params = {}
+    model = Lorenz05(params)
     
+    ensemble_size = 40
+    zens = np.mat(np.random.randn(ensemble_size, model.model_size))
+    zens_wrap = np.concatenate([zens[:, (model.model_size - model.ss2 - 1): model.model_size], zens, zens[:, 0: model.ss2]], axis=1)
+    xens = np.mat(np.zeros((ensemble_size, model.model_size)))
+    
+    t1 = time.time()
+
     
 if __name__ == '__main__':
     test_calx()

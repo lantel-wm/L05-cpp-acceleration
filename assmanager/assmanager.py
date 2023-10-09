@@ -9,8 +9,7 @@ import os
 import numpy as np
 from filter import EnKF
 from filter import EnSRF
-from model import Lorenz05
-# from model.Lorenz05_gpu import Lorenz05_gpu
+from model import Lorenz05, Lorenz05_gpu
 from scipy.io import loadmat
 from tqdm import tqdm
 from functools import partial
@@ -192,6 +191,7 @@ class AssManager:
         
         # load model and filter
         self.model = Lorenz05(self.config['model_params'])
+        # self.model = Lorenz05_gpu(self.config['model_params'])
         self.filter = self.__select_filter(self.config['DA_config']['filter'])
         
         # load data

@@ -2,7 +2,7 @@ from assmanager import AssManager
 
 inflation_values = [1.0, 1.01]
 inflation_sequences = ['before_DA']
-ensemble_size = 40
+ensemble_size = 2000
 forcing = 15
 time_steps = 200 * 360 * 5
 configs = []
