@@ -1,4 +1,4 @@
-# lorenz05-cpp-accelerated
+# lorenz05-cpp-acceleration
 
 [English](./README.md)
 
@@ -7,7 +7,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/network)
 
-Lorenz 05 model数据同化实验框架的Python包。
+Lorenz 05 model数据同化实验框架的Python包，使用c++加速了核心代码。
 
 ## 更新
 

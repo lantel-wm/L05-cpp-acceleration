@@ -1,4 +1,4 @@
-# lorenz05-cpp-accelerated
+# lorenz05-cpp-acceleration
 
 [简体中文](./README_zh-CN.md)
 
@@ -7,7 +7,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/ZZY000926/assmanager)](https://github.com/ZZY000926/assmanager/network)
 
-Python package for data assimilation experiments with the Lorenz 05 model.
+Python package for data assimilation experiments with the Lorenz 05 model, with cpp acceleration.
 
 ## Updates
 
