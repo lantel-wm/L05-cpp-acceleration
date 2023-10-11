@@ -1,8 +1,8 @@
 from assmanager import AssManager
 
-inflation_values = [1.0, 1.01]
+inflation_values = [1.05]
 inflation_sequences = ['before_DA']
-ensemble_size = 40
+ensemble_size = 2000
 forcings = [16, 15]
 time_steps = 200 * 360 * 5
 # time_steps = 200 * 20
@@ -34,6 +34,7 @@ for inf in inflation_values:
                         'save_prior_ensemble': True,
                         'save_analysis_ensemble': True,
                         'file_save_option': 'multiple_files',
+                        # 'file_save_option': 'single_file',
                     },
 
                     'Experiment_option': {

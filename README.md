@@ -13,7 +13,7 @@ Python package for data assimilation experiments with the Lorenz 05 model, with 
 
 ### 2023.10.11 v1.0.1: Model advance rewritten in C++ with multi-threading.
 
-- The Lorenz 05 model advance is now rewritten in C++ with multi-threading, resulting in a **10x speedup** compared to the original Python code. (Tested on Intel Core i9-13900K, 6400MHz 64G DDR5 RAM)
+- The Lorenz 05 model advance is now rewritten in C++ with multi-threading, resulting in a **10x speedup** compared to the original Python code. A 2000 ensemble size, 5 years EnKF experiment can be finished with 4-5h. (Tested on Intel Core i9-13900K, 6400MHz 64G DDR5 RAM)
 
 ### 2023.10.8 v1.0.0: Initial release.
 
@@ -22,18 +22,40 @@ Python package for data assimilation experiments with the Lorenz 05 model, with 
 
 assmanager encapsulates the Lorenz 05 model and data assimilation processes, offering high usability and extensibility.
 
-- Define custom experiment parameters using either ini files or Python dictionaries for easy configuration of multiple experiments.
+- Define custom experiment parameters using either ini files or Python dictionaries for easy execution of multiple experiments.
 - Each experiment's results and parameters are saved in a separate folder for easy replication.
 - Modular design for easy addition of new data assimilation methods and inflation/localization schemes.
 - High speed. The Lorenz 05 model advance is written in C++.
 
 ## Installation
 
+WARNING: This package is only tested on **Python 3.11**, the use of other Python versions may cause errors.
+
+### Install
+
 Install `assmanager` using the following command:
 
 ``` bash
-python setup.py install
+git clone https://github.com/zyzhao0926/L05-cpp-acceleration.git
 ```
+
+Go to `L05-cpp-acceleration/assmanager/model/step_L04/cpu_parallel/`, then compile the cpp extension:
+
+``` bash
+make clean
+make
+```
+
+Back to `L05-cpp-acceleration`, if you want to install this package in a conda virtual environment, make sure you activate your conda env by `conda activate your_conda_env`. If not, ignore this step.
+
+``` bash
+python setup.py sdist
+pip install dist/assmanager-1.0.1.tar.gz
+```
+
+The dependencies will be installled automatically.
+
+### Uninstall
 
 To uninstall `assmanager`, use:
 
@@ -161,6 +183,7 @@ save_prior_rmse = True
 save_analysis_rmse = True
 save_prior_spread_rmse = True
 save_analysis_spread_rmse = True
+file_save_option = single_file
 
 [Input_file_paths]
 ics_path = /data1/zyzhao/scratch/data/ics_ms3_from_zt1year_sz3001.mat # directory must exist
@@ -204,33 +227,61 @@ The parameter configuration is divided into seven major sections:
 
 ### Running Multiple Experiments
 
+See `assmanager/demo.py` for an example of running multiple experiments at once.
+
 ``` python
+# demo.py
 from assmanager import AssManager
 
-inflation_values = [1.0, 1.03, 1.05]
-inflation_sequences = ['before_DA', 'after_DA']
-
+inflation_values = [1.05]
+inflation_sequences = ['before_DA']
+ensemble_size = 2000
+forcings = [16, 15]
+time_steps = 200 * 360 * 5
+# time_steps = 200 * 20
 configs = []
 
 for inf in inflation_values:
     for seq in inflation_sequences:
-        configs.append(
-            {
-                'DA_config': {
-                    'inflation_factor': inf,
-                    'inflation_sequence': seq,
-                },
+        for forcing in forcings:
+            configs.append(
+                {
+                    'model_params': {
+                        'forcing': forcing,
+                        'time_steps': time_steps,
+                    },
+                    
+                    'DA_params': {
+                        'time_steps': time_steps,
+                    },
+                    
+                    'DA_config': {
+                        'ensemble_size': ensemble_size,
+                        'inflation_factor': inf,
+                        'inflation_sequence': seq,
+                        'filter': 'EnKF',
+                    },
+                    
+                    'DA_option': {
+                        'save_kalman_gain': True,
+                        'save_prior_ensemble': True,
+                        'save_analysis_ensemble': True,
+                        'file_save_option': 'multiple_files',
+                        # 'file_save_option': 'single_file',
+                    },
 
-                'Experiment_option': {
-                    'experiment_name': f'inf_{inf}_{seq}'
+                    'Experiment_option': {
+                        'experiment_name': f'EnKF_F{forcing}_inf_{inf}_{seq}_sz{ensemble_size}_5y_cpptest',
+                        'result_save_path': '/mnt/pve_nfs/zyzhao/L05_experiments',
+                    }
                 }
-            }
-        )
+            )
 
 ams = [AssManager(config) for config in configs]
 for am in ams:
     am.run()
 ```
+
 
 ## Extensions
 

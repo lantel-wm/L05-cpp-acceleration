@@ -124,6 +124,7 @@ def serial_update(zens:np.ndarray, zobs:np.ndarray, Hk:np.ndarray, CMat:np.ndarr
     for iobs in range(nobsgrid):
         # xmean = np.mean(zens, axis=0)  # 1xn
         xmean = numba_mean(zens)
+
         xprime = zens - xmean
         hxens = (Hk[iobs, :] @ zens.T).T  # 40*1
         # hxmean = np.mean(hxens, axis=0)
