@@ -1,6 +1,6 @@
 import numpy as np
 from numba import jit, njit, prange
-from step_L04 import cpu
+from .step_L04 import cpu
 
 
 class Lorenz05:
@@ -94,9 +94,9 @@ class Lorenz05:
         
         for iens in range(zens.shape[0]):
             z = zens[iens, :].T
-            
+
             z_save = z
-            dz = self.__comp_dt_L04(z)  # Compute the first intermediate step
+            dz = self.__comp_dt_L04(z, iens)  # Compute the first intermediate step
             z1 = np.multiply(self.delta_t, dz)
             z = z_save + z1 / 2.0
 
@@ -107,7 +107,7 @@ class Lorenz05:
             dz = self.__comp_dt_L04(z)  # Compute the third intermediate step
             z3 = np.multiply(self.delta_t, dz)
             z = z_save + z3
-
+            
             dz = self.__comp_dt_L04(z)  # Compute fourth intermediate step
             z4 = np.multiply(self.delta_t, dz)
 
@@ -122,7 +122,7 @@ class Lorenz05:
         return zens
     
     # private methods
-    def __comp_dt_L04(self, z:np.mat) -> np.mat:
+    def __comp_dt_L04(self, z:np.mat, iens=1) -> np.mat:
         """ compute the time derivative of the model
 
         Args:
@@ -157,10 +157,11 @@ class Lorenz05:
         # Fill the W buffers
         wx[0: self.K4, 0] = wx[self.model_size: self.model_size + self.K4, 0]
         wx[self.model_size + self.K4: self.model_size + 2 * self.K4, 0] = wx[self.K4: self.K4 * 2, 0]
-
+        
         dz = np.mat(np.zeros((self.model_size, 1)))
         # ! Generate dz / dt
         dz = self.__caldz(wx, xwrap, dz, ywrap)
+        
 
         return dz
     
@@ -194,18 +195,18 @@ class Lorenz05:
     
     
     def __calx(self, x:np.mat, zwrap:np.mat) -> np.mat:
-        # return calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
-        return cpu.calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
+        return calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
+        # return cpu.calx(x, zwrap, self.a, self.model_size, self.ss2, self.smooth_steps)
     
     
     def __calw(self, wx:np.mat, xwrap:np.mat) -> np.mat:
-        # return calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
-        return cpu.calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
+        return calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
+        # return cpu.calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
     
     
     def __caldz(self, wx:np.mat, xwrap:np.mat, dz:np.mat, ywrap:np.mat) -> np.mat:
-        # return caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
-        return cpu.caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
+        return caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
+        # return cpu.caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
     
 
 @jit(nopython=True)

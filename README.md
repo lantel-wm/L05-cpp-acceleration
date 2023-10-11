@@ -1,4 +1,4 @@
-# assmanager
+# lorenz05-cpp-accelerated
 
 [简体中文](./README_zh-CN.md)
 
@@ -9,14 +9,23 @@
 
 Python package for data assimilation experiments with the Lorenz 05 model.
 
+## Updates
+
+### 2023.10.11 v1.0.1: Model advance rewritten in C++ with multi-threading.
+
+- The Lorenz 05 model advance is now rewritten in C++ with multi-threading, resulting in a **10x speedup** compared to the original Python code. (Tested on Intel Core i9-13900K, 6400MHz 64G DDR5 RAM)
+
+### 2023.10.8 v1.0.0: Initial release.
+
+
 ## Features
 
 assmanager encapsulates the Lorenz 05 model and data assimilation processes, offering high usability and extensibility.
 
-- Supports defining experiment parameters using either ini files or Python dictionaries for easy configuration of multiple experiments.
+- Define custom experiment parameters using either ini files or Python dictionaries for easy configuration of multiple experiments.
 - Each experiment's results and parameters are saved in a separate folder for easy replication.
 - Modular design for easy addition of new data assimilation methods and inflation/localization schemes.
-- Numba acceleration for the integration process of the Lorenz 05 model for fast execution.
+- High speed. The Lorenz 05 model advance is written in C++.
 
 ## Installation
 

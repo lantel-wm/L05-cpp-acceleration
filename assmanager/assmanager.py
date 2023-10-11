@@ -9,7 +9,7 @@ import os
 import numpy as np
 from filter import EnKF
 from filter import EnSRF
-from model import Lorenz05, Lorenz05_gpu
+from model import Lorenz05, Lorenz05_gpu, Lorenz05_cpu_parallel
 from scipy.io import loadmat
 from tqdm import tqdm
 from functools import partial
@@ -190,8 +190,9 @@ class AssManager:
             
         
         # load model and filter
-        self.model = Lorenz05(self.config['model_params'])
+        # self.model = Lorenz05(self.config['model_params'])
         # self.model = Lorenz05_gpu(self.config['model_params'])
+        self.model = Lorenz05_cpu_parallel(self.config['model_params'])
         self.filter = self.__select_filter(self.config['DA_config']['filter'])
         
         # load data
@@ -268,7 +269,7 @@ class AssManager:
             zobs = self.zobs_total[iassim, :]
             z_truth = self.ztruth_total[iassim, :]
             
-            t1 = time.time()
+            # t1 = time.time()
             if self.filter.inflation_sequence == 'before_DA':
                 zens_prior = self.zens
                 zens_inf = self.filter.inflation(zens_prior)
@@ -280,7 +281,7 @@ class AssManager:
                 zens_analy = self.filter.assimalate(zens_prior, zobs)
                 zens_inf = self.filter.inflation(zens_analy)
                 self.zens = zens_inf
-            print(f'assimalate time: {time.time() - t1}')
+            # print(f'assimalate time: {time.time() - t1}')
             
             # save data
             if self.file_save_option == 'single_file':
@@ -292,10 +293,10 @@ class AssManager:
             
             # advance model
             # parallel_step_forward(pool, num_process, self.zens, self.filter.obs_freq_timestep, self.model)
-            t1 = time.time()
+            # t1 = time.time()
             for _ in range(self.filter.obs_freq_timestep):
                 self.zens = self.model.step_L04(self.zens)
-            print(f'advance model time: {time.time() - t1}')
+            # print(f'advance model time: {time.time() - t1}')
         
         # pool.close()
         # pool.join()

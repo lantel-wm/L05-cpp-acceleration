@@ -1,4 +1,4 @@
-# assmanager
+# lorenz05-cpp-accelerated
 
 [English](./README.md)
 
@@ -9,6 +9,13 @@
 
 Lorenz 05 model数据同化实验框架的Python包。
 
+## 更新
+
+### 2023.10.11 v1.0.1: 使用C++重写模型积分过程，支持多线程。
+
+- 使用c++重写了Lorenz 05 model的积分过程，支持多线程，相比原来的Python代码，速度提升了**10倍** （测试平台：Intel 酷睿 i9-13900K, 6400MHz 64G DDR5 内存）。
+
+
 ## 特性
 
 assmanager对Lorenz 05 model和DA过程进行了封装，具有高易用性和高可扩展性。
@@ -16,7 +23,7 @@ assmanager对Lorenz 05 model和DA过程进行了封装，具有高易用性和�
 - 支持使用ini文件或python字典定义实验参数，方便进行多组实验
 - 每次实验结果和实验参数单独保存在一个文件夹，易于复现
 - 模块化设计，易于添加新的DA方式和inflation，localization方案
-- 对Lorenz 05 model的积分过程进行了numba加速，运行速度快
+- 速度快，使用C++编写了Lorenz 05 model的积分过程
 
 ## 安装
 

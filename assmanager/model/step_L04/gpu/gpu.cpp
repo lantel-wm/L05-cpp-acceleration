@@ -24,6 +24,10 @@ extern "C"
 #endif
 void run_calx_kernel(double* xens, double* zens_wrap, double* a, int ensemble_size, int model_size, int ss2, int smooth_steps);
 void run_calw_kernel(double* wxens, double* xens_wrap, int ensemble_size, int model_size, int K, int K4, int H);
+void run_caldz_kernel(double* wxens, double* xens_wrap, double* dzens, double* yens_wrap,
+          int ensemble_size, int model_size, double space_time_scale, double sts2, double coupling, 
+          double forcing, int K, int K2, int K4, int H, int model_number);
+
 
 py::array_t<double> calx(py::array_t<double> xens_np, py::array_t<double> zens_wrap_np, py::array_t<double> a_np, int model_size, int ss2, int smooth_steps)
 {
@@ -84,11 +88,46 @@ py::array_t<double> calw(py::array_t<double> wxens_np, py::array_t<double> xens_
     return wxens_np;
 }
 
+py::array_t<double> caldz(py::array_t<double> wxens_np, py::array_t<double> xens_wrap_np, py::array_t<double> dzens_np, py::array_t<double> yens_wrap_np,
+    double space_time_scale, double sts2, double coupling, double forcing, int K, int K2, int K4, int H, int model_size, int model_number)
+{
+    py::buffer_info wxens_info = wxens_np.request();
+    py::buffer_info xens_wrap_info = xens_wrap_np.request();
+    py::buffer_info dzens_info = dzens_np.request();
+    py::buffer_info yens_wrap_info = yens_wrap_np.request();
+
+    double *wxens = (double *)wxens_info.ptr;
+    double *xens_wrap = (double *)xens_wrap_info.ptr;
+    double *dzens = (double *)dzens_info.ptr;
+    double *yens_wrap = (double *)yens_wrap_info.ptr;
+
+    double *d_wxens, *d_xens_wrap, *d_dzens, *d_yens_wrap;
+    CHECK(cudaMalloc((void **)&d_wxens, wxens_info.size * sizeof(double)));
+    CHECK(cudaMalloc((void **)&d_xens_wrap, xens_wrap_info.size * sizeof(double)));
+    CHECK(cudaMalloc((void **)&d_dzens, dzens_info.size * sizeof(double)));
+    CHECK(cudaMalloc((void **)&d_yens_wrap, yens_wrap_info.size * sizeof(double)));
+
+    CHECK(cudaMemcpy(d_wxens, wxens, wxens_info.size * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(d_xens_wrap, xens_wrap, xens_wrap_info.size * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(d_dzens, dzens, dzens_info.size * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(d_yens_wrap, yens_wrap, yens_wrap_info.size * sizeof(double), cudaMemcpyHostToDevice));
+
+    run_caldz_kernel(d_wxens, d_xens_wrap, d_dzens, d_yens_wrap, dzens_info.shape[0], dzens_info.shape[1], space_time_scale, sts2, coupling, forcing, K, K2, K4, H, model_number);
+
+    CHECK(cudaMemcpy(dzens, d_dzens, dzens_info.size * sizeof(double), cudaMemcpyDeviceToHost));
+    CHECK(cudaFree(d_wxens));
+    CHECK(cudaFree(d_xens_wrap));
+    CHECK(cudaFree(d_dzens));
+    CHECK(cudaFree(d_yens_wrap));
+
+    return dzens_np;
+}
+
 
 PYBIND11_MODULE(gpu, m)
 {
     m.doc() = "step_L04 cpp extension, gpu version";
     m.def("calx", &calx, "calx function");
     m.def("calw", &calw, "calw function");
-    // m.def("caldz", &caldz, "caldz function");
+    m.def("caldz", &caldz, "caldz function");
 }

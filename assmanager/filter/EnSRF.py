@@ -1,5 +1,6 @@
 import numpy as np
 from .ensembleFilter import ensembleFilter
+from numba import jit, njit, prange
 
 
 class EnSRF(ensembleFilter):
@@ -20,6 +21,7 @@ class EnSRF(ensembleFilter):
         """
         if self.update_method == 'serial_update':
             return self.__serial_update(zens, zobs)
+            # return np.mat(serial_update(np.array(zens), np.array(zobs), np.array(self.Hk), np.array(self.CMat), self.ensemble_size, self.nobsgrid, self.obs_error_var, self.localization_method))
         elif self.update_method == 'parallel_update':
             return self.__parallel_update(zens, zobs)
         
@@ -99,3 +101,51 @@ class EnSRF(ensembleFilter):
         """
         # TODO: parallel update
         pass
+
+@jit(nopython=True, parallel=True)
+def numba_mean(a):
+    """ numba mean
+
+    Args:
+        a (np.array): array
+
+    Returns:
+        np.array: mean
+    """
+    mean_np = np.zeros((1, a.shape[1]))
+    for i in prange(a.shape[1]):
+        mean_np[0, i] = a[:, i].mean()
+    return mean_np
+
+    
+@jit(nopython=True)
+def serial_update(zens:np.ndarray, zobs:np.ndarray, Hk:np.ndarray, CMat:np.ndarray, ensemble_size:int, nobsgrid:int, obs_error_var:float, localization_method:str) -> np.ndarray:
+    rn = 1.0 / (ensemble_size - 1)
+    for iobs in range(nobsgrid):
+        # xmean = np.mean(zens, axis=0)  # 1xn
+        xmean = numba_mean(zens)
+        xprime = zens - xmean
+        hxens = (Hk[iobs, :] @ zens.T).T  # 40*1
+        # hxmean = np.mean(hxens, axis=0)
+        hxmean = hxens.mean()
+        hxprime = hxens - hxmean
+        hpbht = np.dot(hxprime, hxprime) * rn
+        gainfact = (hpbht + obs_error_var) / hpbht * (1.0 - np.sqrt(obs_error_var / (hpbht + obs_error_var)))
+        pbht = (xprime.T @ hxprime) * rn
+
+        if localization_method is None:
+            kfgain = pbht / (hpbht + obs_error_var)
+        elif localization_method == 'GC':
+            Cvect = CMat[iobs, :]
+            kfgain = Cvect.T * (pbht / (hpbht + obs_error_var))
+        else:
+            # TODO: other localization type
+            kfgain = pbht / (hpbht + obs_error_var)
+
+        mean_inc = (kfgain * (zobs[0, iobs] - hxmean))[None, :]
+        prime_inc = - (gainfact * hxprime[:, None] @ kfgain[:, None].T)
+        # print(zens.shape, mean_inc.shape, prime_inc.shape)
+
+        zens = zens + mean_inc + prime_inc
+
+    return zens

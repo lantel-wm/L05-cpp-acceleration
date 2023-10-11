@@ -107,6 +107,29 @@ def test_calw_gpu():
     print(time.time() - t2)
     
     print((wxens1 == wxens2).T)
+    
+    
+def test_caldz_gpu():
+    params = {}
+    model = Lorenz05_gpu(params)
+    
+    ensemble_size = 2048
+    wxens = np.mat(np.random.randn(ensemble_size, model.model_size + model.K4 * 2))
+    xens = np.mat(np.random.randn(ensemble_size, model.model_size))
+    xens_wrap = np.concatenate([xens[:, (model.model_size - model.K4 - 1): model.model_size], xens, xens[:, 0: model.K4]], axis=1)
+    dzens = np.mat(np.zeros((ensemble_size, model.model_size)))
+    yens = np.mat(np.random.randn(ensemble_size, model.model_size))
+    yens_wrap = np.concatenate([yens[:, (model.model_size - model.K4 - 1): model.model_size], yens, yens[:, 0: model.K4]], axis=1)
+    
+    t1 = time.time()
+    dzens1 = caldz(wxens, xens_wrap, dzens, yens_wrap, model.space_time_scale, model.sts2, model.coupling, model.forcing, model.K, model.K2, model.K4, model.H, model.model_size, model.model_number)
+    print(time.time() - t1)
+    
+    t2 = time.time()
+    dzens2 = gpu.caldz(wxens, xens_wrap, dzens, yens_wrap, model.space_time_scale, model.sts2, model.coupling, model.forcing, model.K, model.K2, model.K4, model.H, model.model_size, model.model_number)
+    print(time.time() - t2)
+    
+    print((dzens1 == dzens2).T)
 
     
 if __name__ == '__main__':
@@ -114,3 +137,5 @@ if __name__ == '__main__':
     # test_calw()
     # test_caldz()
     test_calx_gpu()
+    test_calw_gpu()
+    test_caldz_gpu()

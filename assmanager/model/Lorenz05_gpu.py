@@ -1,6 +1,6 @@
 import numpy as np
 from numba import jit, njit, prange
-from step_L04 import cpu
+from .step_L04 import gpu
 
 
 class Lorenz05_gpu:
@@ -186,6 +186,8 @@ class Lorenz05_gpu:
         #start_t2 = time()
         xens = self.__calx(xens, zens_wrap)
         #print('cpu_calx_time:' + str(time()-start_t2))
+        # assert np.nan not in xens
+        # print('xens:', xens)
 
         # Generate the y variables
         yens = zens - xens
@@ -193,18 +195,18 @@ class Lorenz05_gpu:
     
     
     def __calx(self, xens:np.mat, zens_wrap:np.mat) -> np.mat:
-        return calx(xens, zens_wrap, self.a, self.model_size, self.ss2, self.smooth_steps)
-        # return cpu.calx(xens, zens_wrap, self.a, self.model_size, self.ss2, self.smooth_steps)
+        # return calx(xens, zens_wrap, self.a, self.model_size, self.ss2, self.smooth_steps)
+        return gpu.calx(xens, zens_wrap, self.a, self.model_size, self.ss2, self.smooth_steps)
     
     
     def __calw(self, wxens:np.mat, xens_wrap:np.mat) -> np.mat:
-        return calw(wxens, xens_wrap, self.K, self.K4, self.H, self.model_size)
-        # return cpu.calw(wx, xwrap, self.K, self.K4, self.H, self.model_size)
+        # return calw(wxens, xens_wrap, self.K, self.K4, self.H, self.model_size)
+        return gpu.calw(wxens, xens_wrap, self.K, self.K4, self.H, self.model_size)
     
     
     def __caldz(self, wxens:np.mat, xens_wrap:np.mat, dzens:np.mat, yens_wrap:np.mat) -> np.mat:
-        return caldz(wxens, xens_wrap, dzens, yens_wrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
-        # return cpu.caldz(wx, xwrap, dz, ywrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
+        # return caldz(wxens, xens_wrap, dzens, yens_wrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
+        return gpu.caldz(wxens, xens_wrap, dzens, yens_wrap, self.space_time_scale, self.sts2, self.coupling, self.forcing, self.K, self.K2, self.K4, self.H, self.model_size, self.model_number)
     
 
 @jit(nopython=True)

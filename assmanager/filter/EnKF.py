@@ -1,5 +1,7 @@
 import numpy as np
 from .ensembleFilter import ensembleFilter
+# from .acc import cpu
+from numba import jit
 
 class EnKF(ensembleFilter):
     """ Ensemble Kalman Filter
@@ -113,3 +115,33 @@ class EnKF(ensembleFilter):
         """
         # TODO: parallel update
         pass
+    
+    
+@jit(nopython=True)
+def serial_update(zens:np.mat, zobs:np.mat, Hk:np.mat, CMat:np.mat, ensemble_size:int, nobsgrid:int, obs_error_var:float, localization_method:str) -> np.mat:
+    rn = 1.0 / (ensemble_size - 1)
+    
+    for iobs in range(nobsgrid):
+        xmean = np.mean(zens, axis=0)  # 1xn
+        xprime = zens - xmean
+        hxens = (Hk[iobs, :] * zens.T).T  # 40*1
+        hxmean = np.mean(hxens, axis=0)
+        hxprime = hxens - hxmean
+        hpbht = (hxprime.T * hxprime * rn)[0, 0]
+        pbht = (xprime.T * hxprime) * rn
+    
+        # localization
+        if localization_method is None:
+            kfgain = pbht / (hpbht + obs_error_var)
+        elif localization_method == 'GC':
+            Cvect = CMat[iobs, :]
+            kfgain = np.multiply(Cvect.T, (pbht / (hpbht + obs_error_var)))
+        else:
+            # TODO: other localization methods
+            kfgain = pbht / (hpbht + obs_error_var)
+
+        inc = (kfgain * (zobs[:,iobs] - hxens).T).T
+
+        zens = zens + inc
+
+    return zens
