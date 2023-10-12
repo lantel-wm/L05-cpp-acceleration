@@ -330,7 +330,7 @@ def inflation(self, zens: np.mat) -> np.mat:
 
 - Zhiyu Zhao
 - zyzh@smail.nju.edu.cn
-
+- qq: 605601949
 
 ## 感谢
 [Zhongrui Wang](https://github.com/zhongruiw) 提供了使用numba加速的 L05 python 代码以及DA程序。

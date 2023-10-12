@@ -333,6 +333,7 @@ To add a new DA method, copy the `EnKF.py` file in the filter/ directory and ren
 
 - Zhiyu Zhao
 - zyzh@smail.nju.edu.cn
+- qq: 605601949
 
 
 ## Acknowledgments
