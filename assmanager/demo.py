@@ -1,6 +1,6 @@
 from assmanager import AssManager
 
-inflation_values = [1.01]
+inflation_values = [1.0, 1.05]
 inflation_sequences = ['before_DA']
 ensemble_size = 2000
 forcings = [15]
@@ -17,7 +17,7 @@ for inf in inflation_values:
                 {
                     'model_params': {
                         'forcing': forcing,
-                        'time_steps': time_steps,
+                        # 'time_steps': time_steps,
                     },
                     
                     'DA_params': {
@@ -42,7 +42,7 @@ for inf in inflation_values:
 
                     'Experiment_option': {
                         'experiment_name': f'EnKF_F{forcing}_inf_{inf}_loc_{localization_method}_{seq}_sz{ensemble_size}_5y',
-                        'result_save_path': '/mnt/pve_nfs/zyzhao/L05_experiments',
+                        'result_save_path': '/mnt/ssd/L05_experiments',
                     }
                 }
             )

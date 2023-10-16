@@ -7,45 +7,12 @@ import operator as op
 import os
 
 import numpy as np
-from filter import EnKF
-from filter import EnSRF
-from model import Lorenz05, Lorenz05_gpu, Lorenz05_cpu_parallel
+from .filter import EnKF
+from .filter import EnSRF
+from .model import Lorenz05, Lorenz05_gpu, Lorenz05_cpu_parallel
 from scipy.io import loadmat
 from tqdm import tqdm
 from functools import partial
-
-
-def step_forward(zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> np.mat:
-    """ step forward the model
-
-    Args:
-        
-        zens (np.mat): state ensemble
-        obs_freq_timestep (int): observation frequency in time step
-        model (Lorenz05): model
-        
-    """
-    
-    for _ in range(obs_freq_timestep):
-        zens = model.step_L04(zens)
-    return zens
-
-
-def parallel_step_forward(pool: multiprocessing.Pool, num_process:int, zens: np.mat, obs_freq_timestep: int, model: Lorenz05) -> None:
-    """ step forward the model in parallel
-
-    Args:
-        zens (np.mat): state ensemble
-        obs_freq_timestep (int): observation frequency in time step
-        model (Lorenz05): model
-    """
-
-    zens_blocks = np.array_split(zens, num_process, axis=0)
-    partial_step_forward = partial(step_forward, obs_freq_timestep=obs_freq_timestep, model=model)
-    pool.map_async(partial_step_forward, zens_blocks)
-    zens = np.concatenate(zens_blocks, axis=0)
-    
-    return zens
 
 
 class AssManager:
@@ -169,25 +136,6 @@ class AssManager:
         if self.verbose:
             self.__show_logo()
             
-        # correct time_steps in model and filter
-        if self.config['model_params']['time_steps'] != self.config['DA_params']['time_steps']:
-            print(f'\n\nWarning: time_steps in model and filter are not equal.\n\n')
-            print(f'time_steps in model: {self.config["model_params"]["time_steps"]}')
-            print(f'time_steps in filter: {self.config["DA_params"]["time_steps"]}')
-            correction_value = min(self.config['model_params']['time_steps'], self.config['DA_params']['time_steps'])
-            print(f'\n\ntime_steps in filter will be set to {correction_value}.\n\n')
-            self.config['model_params']['time_steps'] = correction_value
-            self.config['DA_params']['time_steps'] = correction_value
-            print('Continue? (y/n)')
-            
-            while True:
-                choice = input()
-                if choice in ['y', 'Y', 'yes', 'Yes', 'YES']:
-                    break
-                elif choice in ['n', 'N', 'no', 'No', 'NO']:
-                    print('Experiment terminated.')
-                    exit(0)
-            
         
         # load model and filter
         # self.model = Lorenz05(self.config['model_params'])
@@ -196,9 +144,7 @@ class AssManager:
         self.filter = self.__select_filter(self.config['DA_config']['filter'])
         
         # load data
-        zics_total = loadmat(self.config['Input_file_paths']['ics_path'])[self.config['Input_file_paths']['ics_key']]
-        zobs_total = loadmat(self.config['Input_file_paths']['obs_path'])[self.config['Input_file_paths']['obs_key']]
-        ztruth_total = loadmat(self.config['Input_file_paths']['truth_path'])[self.config['Input_file_paths']['truth_key']]      
+        zics_total, zobs_total, ztruth_total = self.__load_data()     
         
         # set intial conditions
         ensemble_size = self.config['DA_config']['ensemble_size']
@@ -429,7 +375,31 @@ class AssManager:
             return EnSRF(self.config['DA_params'], self.config['DA_config'], self.config['DA_option'])
         else:
             raise ValueError(f'Invalid filter name {filter_name}')
+    
+    
+    def __load_data(self):
+        """ load data
+
+        Returns:
+            tuple: (zics_total, zobs_total, ztruth_total)
+        """
+        ics_path = self.config['Input_file_paths']['ics_path']
+        obs_path = self.config['Input_file_paths']['obs_path']
+        truth_path = self.config['Input_file_paths']['truth_path']
+        if ics_path.endswith('.mat') and obs_path.endswith('.mat') and truth_path.endswith('.mat'):
+            zics_total = loadmat(self.config['Input_file_paths']['ics_path'])[self.config['Input_file_paths']['ics_key']]
+            zobs_total = loadmat(self.config['Input_file_paths']['obs_path'])[self.config['Input_file_paths']['obs_key']]
+            ztruth_total = loadmat(self.config['Input_file_paths']['truth_path'])[self.config['Input_file_paths']['truth_key']]
+        elif ics_path.endswith('.npy') and obs_path.endswith('.npy') and truth_path.endswith('.npy'):
+            zics_total = np.load(self.config['Input_file_paths']['ics_path'])
+            zobs_total = np.load(self.config['Input_file_paths']['obs_path'])
+            ztruth_total = np.load(self.config['Input_file_paths']['truth_path'])
+        else:
+            raise ValueError(f'Invalid data file type, must be .mat or .npy')
         
+        return zics_total, zobs_total, ztruth_total
+    
+    
     def __show_logo(self) -> None:
         print('''
               
