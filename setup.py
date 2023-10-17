@@ -9,7 +9,7 @@ def get_so_filepath():
 
 setup(
     name = "assmanager",
-    version = "1.0.1",
+    version = "1.0.2",
     author = "Zhiyu Zhao",
     author_email = "zyzh@smail.nju.edu.cn",
     description = "Lorenz 05 model in Python",
