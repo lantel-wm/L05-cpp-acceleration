@@ -11,9 +11,12 @@
 # Coded by: Zhongrui Wang & Zhiyu Zhao
 
 import os
-from abc import ABC, abstractmethod
 import numpy as np
+import torch
+import importlib
+from abc import ABC, abstractmethod
 from numba import jit
+
 
 
 class ensembleFilter(ABC):
@@ -76,6 +79,9 @@ class ensembleFilter(ABC):
         'inflation_sequence',
         'localization_method',
         'localization_radius',
+        'cnn_weight_path',
+        'cnn_model_path',
+        'cnn_model_name',
     ]
     
     option_list = [
@@ -141,29 +147,22 @@ class ensembleFilter(ABC):
         # GC localization
         if self.localization_method == 'GC':
             self.CMat = np.mat(self.__get_localization_matrix())
+        if self.localization_method == 'CLF':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.cnn_model = self.__load_cnn_model().to(self.device)
             
         # array for saving results
         if self.file_save_option == 'single_file':
             self.zens_prior = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_prior_ensemble else None
-            
             self.prior = np.zeros((self.nobstime, self.model_size))
-            
             self.zens_analy = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_analysis_ensemble else None
-            
             self.analy = np.zeros((self.nobstime, self.model_size))
-                
             self.kg_series = np.zeros((self.nobstime, self.model_size, self.nobsgrid)) if self.save_kalman_gain else None
-            
             self.prior_rmse = np.zeros(self.nobstime) if self.save_prior_rmse else None
-            
             self.analy_rmse = np.zeros(self.nobstime) if self.save_analysis_rmse else None
-                
             self.prior_spread = np.zeros((self.nobstime, self.model_size))
-            
             self.analy_spread = np.zeros((self.nobstime, self.model_size))
-            
             self.prior_spread_rmse = np.zeros(self.nobstime) if self.save_prior_spread_rmse else None
-                
             self.analy_spread_rmse = np.zeros(self.nobstime) if self.save_analysis_spread_rmse else None
             
         # assimilation step counter (iassim)
@@ -368,6 +367,10 @@ class ensembleFilter(ABC):
         PbHt = (Xprime.T * HXprime) * rn
         HPbHt = (HXprime.T * HXprime) * rn
         K = PbHt * (HPbHt + self.R).I
+        if self.localization_method == "GC":
+            K = np.multiply(self.CMat.T, K)
+        elif self.localization_method == "CLF":
+            K = self._CLF(K)
         return K
     
     
@@ -430,6 +433,38 @@ class ensembleFilter(ABC):
     # private methods
     def __get_localization_matrix(self) -> np.mat:
         return construct_GC_2d(self.localization_radius, self.model_size, self.obs_grids)
+    
+    def _CLF(self, kfgain:np.mat) -> np.mat:
+        """ CLF localization
+
+        Args:
+            kfgain (np.mat): Kalman gain matrix
+
+        Returns:
+            np.mat: localized Kalman gain matrix
+        """
+        kfgain_in = torch.from_numpy(kfgain).float().to(self.device).unsqueeze(0).unsqueeze(0)
+        kfgain_out = self.cnn_model(kfgain_in).squeeze(0).squeeze(0).cpu().detach().numpy()
+        return kfgain_out
+    
+    
+    def __load_cnn_model(self) -> torch.nn.Module:
+        """ load cnn model
+
+        Returns:
+            torch.nn.Module: cnn model
+        """
+        cnn_weight_path = self.cnn_weight_path
+        cnn_model_path = self.cnn_model_path
+        cnn_model_name = self.cnn_model_name
+        import sys
+        sys.path.append(cnn_model_path)
+        cnn_module = importlib.import_module(f'{cnn_model_name}')
+        cnn_model = getattr(cnn_module, cnn_model_name)()
+        checkpoint = torch.load(cnn_weight_path)
+        cnn_model.load_state_dict({k.replace('module.',''):v for k, v in checkpoint.items()})
+        cnn_model.eval()
+        return cnn_model
         
     
     # abstract methods

@@ -11,6 +11,10 @@ Lorenz 05 model数据同化实验框架的Python包，使用c++加速了核心�
 
 ## 更新
 
+### 2023.10.17 v1.0.2: 添加了生成自定义初始条件和观测数据的功能。
+
+- 添加了生成自定义初始条件和观测数据的功能，可以通过`DataGenerator`生成自定义的初始条件和观测数据，然后使用`AssManager`进行同化实验。详见**用法**。
+
 ### 2023.10.11 v1.0.1: 使用C++重写模型积分过程，支持多线程。
 
 - 使用c++重写了Lorenz 05 model的积分过程，支持多线程，相比原来的Python代码，速度提升了**10倍**。ensemble size为2000，时长为5年，使用EnKF的同化实验仅需4到5小时。（测试平台：Intel 酷睿 i9-13900K, 6400MHz 64G DDR5 内存）
@@ -132,6 +136,20 @@ am = AssManager(config)
 config_path = './config.ini'
 am = AssManager(config_path)
 ```
+
+### 生成自定义初始条件和观测数据
+
+使用`DataGenerator`生成`.npy`格式的自定义的初始条件和观测数据。
+
+``` python
+from assmanager import DataGenerator
+
+dg = DataGenerator({'forcing': 15})
+dg.generate_ics(3001)
+dg.generate_nr()
+```
+
+运行以上代码将在当前目录生成初始条件和观测数据，若想指定目录，可以传入`data_save_path`参数。
 
 ### 默认实验参数及含义
 

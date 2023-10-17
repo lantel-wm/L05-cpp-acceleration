@@ -13,6 +13,7 @@ from .model import Lorenz05, Lorenz05_gpu, Lorenz05_cpu_parallel
 from scipy.io import loadmat
 from tqdm import tqdm
 from functools import partial
+from copy import deepcopy
 
 
 class AssManager:
@@ -48,7 +49,10 @@ class AssManager:
             "inflation_factor": 1.01,
             "inflation_sequence": "before_DA",
             "localization_method": "GC",
-            "localization_radius": 240
+            "localization_radius": 240,
+            "cnn_weight_path": ".",
+            "cnn_model_path": ".",
+            "cnn_model_name": "name",
         },
         "DA_option": {
             "save_prior_ensemble": False,
@@ -119,13 +123,14 @@ class AssManager:
         elif type(config) == dict:
             self.__check_config_dict(config)
             
-            with open('config.ini', 'r') as f:
-                conpar = configparser.ConfigParser()
-                conpar.optionxform = lambda option: option
-                conpar.read('config.ini')
+            # with open('config.ini', 'r') as f:
+            #     conpar = configparser.ConfigParser()
+            #     conpar.optionxform = lambda option: option
+            #     conpar.read('config.ini')
             
             # load default config
-            self.config = {s:dict(self.__type_recovery(conpar.items(s))) for s in conpar.sections()}
+            # self.config = {s:dict(self.__type_recovery(conpar.items(s))) for s in conpar.sections()}
+            self.config = deepcopy(self.default_config)
             # overwrite default config
             for section in config:
                 for option in config[section]:
@@ -159,6 +164,8 @@ class AssManager:
         iobs_beg = 0
         iobs_end = iobs_beg + int(time_steps / obs_freq_timestep) + 1
         self.zobs_total = np.mat(zobs_total[iobs_beg:iobs_end, :]) # obs
+        if self.zobs_total.shape[1] == self.model.model_size:
+            self.zobs_total = self.zobs_total * self.filter.Hk.T
         
         # set truth
         # itruth_beg = int(23 * 360 * 200 / obs_freq_timestep)

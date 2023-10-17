@@ -2,6 +2,7 @@ import numpy as np
 from .ensembleFilter import ensembleFilter
 # from .acc import cpu
 from numba import jit
+import torch
 
 class EnKF(ensembleFilter):
     """ Ensemble Kalman Filter
@@ -37,7 +38,12 @@ class EnKF(ensembleFilter):
         elif self.update_method == 'parallel_update':
             # update assimilation step counter
             self.assimilation_step_counter += 1
-            return self.__parallel_update(zens, zobs)
+            
+            # perturb observations
+            obs_p = np.random.normal(0., np.sqrt(self.obs_error_var), (self.ensemble_size, self.nobsgrid))
+            obs = zobs + obs_p
+            
+            return self.__parallel_update(zens, obs)
         
         
     def inflation(self, zens: np.mat) -> np.mat:
@@ -76,7 +82,6 @@ class EnKF(ensembleFilter):
             np.mat: analysis
         """
         rn = 1.0 / (self.ensemble_size - 1)
-    
         for iobs in range(self.nobsgrid):
             xmean = np.mean(zens, axis=0)  # 1xn
             xprime = zens - xmean
@@ -92,14 +97,11 @@ class EnKF(ensembleFilter):
             elif self.localization_method == 'GC':
                 Cvect = self.CMat[iobs, :]
                 kfgain = np.multiply(Cvect.T, (pbht / (hpbht + self.obs_error_var)))
-            else:
-                # TODO: other localization methods
-                kfgain = pbht / (hpbht + self.obs_error_var)
 
             inc = (kfgain * (zobs[:,iobs] - hxens).T).T
 
             zens = zens + inc
-
+        
         return zens
     
     
@@ -113,8 +115,25 @@ class EnKF(ensembleFilter):
         Returns:
             np.mat: analysis
         """
-        # TODO: parallel update
-        pass
+        rn = 1.0 / (self.ensemble_size - 1)
+        Xprime = zens - np.mean(zens, axis=0)
+        HXens = (self.Hk * zens.T).T
+        HXprime = HXens - np.mean(HXens, axis=0)
+        PbHt = (Xprime.T * HXprime) * rn
+        HPbHt = (HXprime.T * HXprime) * rn
+        K = PbHt * (HPbHt + self.R).I
+        
+        if self.localization_method == 'GC':
+            K = np.multiply(self.CMat.T, K)
+        elif self.localization_method == 'CLF':
+            K = super()._CLF(K)
+        elif self.localization_method is None:
+            pass
+        
+        zens = zens + (K * (zobs - HXens).T).T
+        
+        return zens
+        
     
     
 @jit(nopython=True)
