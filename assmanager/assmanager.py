@@ -9,7 +9,7 @@ import os
 import numpy as np
 from .filter import EnKF
 from .filter import EnSRF
-from .model import Lorenz05, Lorenz05_gpu, Lorenz05_cpu_parallel
+from .model import Lorenz05, Lorenz05_cpu_parallel, Lorenz05_unet
 from scipy.io import loadmat
 from tqdm import tqdm
 from functools import partial
@@ -22,6 +22,7 @@ class AssManager:
     
     default_config = {
         "model_params": {
+            "advancement": "cpu_parallel", # default, cpu, cpu_parrellel, unet
             "model_size": 960,
             "forcing": 15.0,
             "space_time_scale": 10.0,
@@ -31,7 +32,6 @@ class AssManager:
             "delta_t": 0.001,
             "time_step_days": 0,
             "time_step_seconds": 432,
-            "time_steps": 200 * 360,
             "model_number": 3
         },
         "DA_params": {
@@ -62,6 +62,9 @@ class AssManager:
             "save_observation": True,
             "save_truth": False,
             "save_kalman_gain": False,
+            "save_inflated_kalman_gain": False,
+            "save_localized_kalman_gain": False,
+            "save_inflated_localized_kalman_gain": False,
             "save_prior_rmse": True,
             "save_analysis_rmse": True,
             "save_prior_spread_rmse": True,
@@ -92,6 +95,9 @@ class AssManager:
             "obs_filename": "zobs",
             "truth_filename": "ztruth",
             "kalman_gain_filename": "kg",
+            "inflated_kalman_gain_filename": "kg_inf",
+            "localized_kalman_gain_filename": "kg_loc",
+            "inflated_localized_kalman_gain_filename": "kg_inf_loc",
             "prior_rmse_filename": "prior_rmse",
             "analysis_rmse_filename": "analy_rmse",
             "prior_spread_rmse_filename": "prior_spread_rmse",
@@ -115,13 +121,13 @@ class AssManager:
                 conpar.optionxform = lambda option: option
                 conpar.read(config)
                 
-            self.__check_config_file(conpar, config)
+            self._check_config_file(conpar, config)
             
-            self.config = {s:dict(self.__type_recovery(conpar.items(s))) for s in conpar.sections()}
+            self.config = {s:dict(self._type_recovery(conpar.items(s))) for s in conpar.sections()}
         
         # load config dict
         elif type(config) == dict:
-            self.__check_config_dict(config)
+            self._check_config_dict(config)
             
             # with open('config.ini', 'r') as f:
             #     conpar = configparser.ConfigParser()
@@ -139,17 +145,24 @@ class AssManager:
         # print(json.dumps(self.config, indent=4))
         self.verbose = self.config['Experiment_option']['verbose']
         if self.verbose:
-            self.__show_logo()
+            self._show_logo()
             
         
         # load model and filter
-        # self.model = Lorenz05(self.config['model_params'])
-        # self.model = Lorenz05_gpu(self.config['model_params'])
-        self.model = Lorenz05_cpu_parallel(self.config['model_params'])
-        self.filter = self.__select_filter(self.config['DA_config']['filter'])
+        self.advancement = self.config['model_params']['advancement']
+        if self.advancement == 'cpu_parallel':
+            self.model = Lorenz05_cpu_parallel(self.config['model_params'])
+        elif self.advancement == 'unet':
+            self.model = Lorenz05_unet(self.config['model_params'])
+        elif self.advancement == 'default':
+            self.model = Lorenz05(self.config['model_params'])
+        else:
+            raise ValueError(f'Invalid model advancement {self.advancement}')
+        
+        self.filter = self._select_filter(self.config['DA_config']['filter'])
         
         # load data
-        zics_total, zobs_total, ztruth_total = self.__load_data()     
+        zics_total, zobs_total, ztruth_total = self._load_data()     
         
         # set intial conditions
         ensemble_size = self.config['DA_config']['ensemble_size']
@@ -158,7 +171,7 @@ class AssManager:
         self.zens = np.mat(zics_total[ics_imem_beg:ics_imem_end, :]) # ic
         
         # set observations
-        time_steps = self.config['model_params']['time_steps']
+        time_steps = self.config['DA_params']['time_steps']
         obs_freq_timestep = self.config['DA_params']['obs_freq_timestep']
         # iobs_beg = int(23 * 360 * 200 / obs_freq_timestep)
         iobs_beg = 0
@@ -199,7 +212,7 @@ class AssManager:
         """ run the experiment
         """        
         if self.verbose:
-            self.__show_run_info()
+            self._show_run_info()
             
         # num_process = self.config['DA_config']['ensemble_size']
         # num_process = multiprocessing.cpu_count()
@@ -214,7 +227,7 @@ class AssManager:
                 print(f'Warning: {self.result_save_path} already exists, incrementing path...\n\n')
                 self.result_save_path = increment_path(self.result_save_path)
                 print(f'Incremented path to {self.result_save_path}\n\n')
-            self.__save_config()
+            self._save_config()
     
         # DA cycles
         loop = tqdm(range(self.filter.nobstime), desc=self.config['Experiment_option']['experiment_name'])
@@ -225,14 +238,14 @@ class AssManager:
             # t1 = time.time()
             if self.filter.inflation_sequence == 'before_DA':
                 zens_prior = self.zens
-                zens_inf = self.filter.inflation(zens_prior)
+                zens_inf = self.filter.inflate(zens_prior)
                 zens_analy = self.filter.assimalate(zens_inf, zobs)
                 self.zens = zens_analy
                 
             elif self.filter.inflation_sequence == 'after_DA':
                 zens_prior = self.zens
                 zens_analy = self.filter.assimalate(zens_prior, zobs)
-                zens_inf = self.filter.inflation(zens_analy)
+                zens_inf = self.filter.inflate(zens_analy)
                 self.zens = zens_inf
             # print(f'assimalate time: {time.time() - t1}')
             
@@ -247,8 +260,11 @@ class AssManager:
             # advance model
             # parallel_step_forward(pool, num_process, self.zens, self.filter.obs_freq_timestep, self.model)
             # t1 = time.time()
-            for _ in range(self.filter.obs_freq_timestep):
+            if self.advancement == 'unet':
                 self.zens = self.model.step_L04(self.zens)
+            else:
+                for _ in range(self.filter.obs_freq_timestep):
+                    self.zens = self.model.step_L04(self.zens)
             # print(f'advance model time: {time.time() - t1}')
         
         # pool.close()
@@ -265,13 +281,13 @@ class AssManager:
                 print(f'Incremented path to {self.result_save_path}\n\n')
             
             self.filter.save(self.config['Experiment_option'], self.result_save_path,  self.ztruth_total, self.zobs_total)
-            self.__save_config()
+            self._save_config()
             
-        self.__done()
+        self._done()
         
         
     # private methods
-    def __check_config_file(self, conpar:configparser.ConfigParser, config:str) -> None:
+    def _check_config_file(self, conpar:configparser.ConfigParser, config:str) -> None:
         """ check the config file
 
         Args:
@@ -297,7 +313,7 @@ class AssManager:
                     raise ValueError(f'Invalid option: {option} in section {section} of {config}')
     
     
-    def __check_config_dict(self, config:dict) -> None:
+    def _check_config_dict(self, config:dict) -> None:
         """ check the config dict
 
         Args:
@@ -322,7 +338,7 @@ class AssManager:
                     raise ValueError(f'Invalid option: {option} in section {section} of config dict')
     
     
-    def __is_legal_expr(self, expr:str) -> bool:
+    def _is_legal_expr(self, expr:str) -> bool:
         """ check if the expression is legal
 
         Args:
@@ -338,7 +354,7 @@ class AssManager:
             return False
         
 
-    def __type_recovery(self, items:list) -> list:
+    def _type_recovery(self, items:list) -> list:
         """ recover the type of the value from str to the original type
 
         Args:
@@ -358,13 +374,13 @@ class AssManager:
                 yield key, int(value)
             elif value.replace('.', '').isdigit():
                 yield key, float(value)
-            elif self.__is_legal_expr(value):
+            elif self._is_legal_expr(value):
                 yield key, eval_expr(value)
             else:
                 yield key, value     
     
                 
-    def __select_filter(self, filter_name:str):
+    def _select_filter(self, filter_name:str):
         """ select the filter
 
         Args:
@@ -384,7 +400,7 @@ class AssManager:
             raise ValueError(f'Invalid filter name {filter_name}')
     
     
-    def __load_data(self):
+    def _load_data(self):
         """ load data
 
         Returns:
@@ -407,7 +423,7 @@ class AssManager:
         return zics_total, zobs_total, ztruth_total
     
     
-    def __show_logo(self) -> None:
+    def _show_logo(self) -> None:
         print('''
               
 |-------------------------------------------------------------|
@@ -423,7 +439,7 @@ class AssManager:
 
               ''')
         
-    def __show_run_info(self) -> None:
+    def _show_run_info(self) -> None:
         
         print('\n\n Experiment settings: \n\n')
         print(json.dumps(self.config['model_params'], indent=4))
@@ -444,7 +460,7 @@ class AssManager:
         
         print('\n\n🚀 Experiment started.\n\n')
         
-    def __save_config(self) -> None:
+    def _save_config(self) -> None:
         """ save config file as .ini
         """
         config = configparser.ConfigParser()
@@ -454,7 +470,7 @@ class AssManager:
         with open(os.path.join(self.result_save_path, 'config.ini'), 'w') as f:
             config.write(f)
 
-    def __done(self):
+    def _done(self):
         print('\n\n-------------------------------------------------------------n\n')
         print(f'Experiment result saved in {self.result_save_path}.\n')
         print('\n\n👍 Experiment finished.\n\n')

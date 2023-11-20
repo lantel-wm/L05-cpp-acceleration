@@ -23,10 +23,10 @@ class Lorenz05_cpu_parallel:
     delta_t = 0.001
     time_step_days = 0
     time_step_seconds = 432
-    time_steps = 200 * 360              # 360 days(1 day~ 200 time steps)
     model_number = 3                    # 2 scale
     
     parameter_list = [
+        'advancement',
         'model_size',
         'forcing',
         'space_time_scale',
@@ -36,7 +36,6 @@ class Lorenz05_cpu_parallel:
         'delta_t',
         'time_step_days',
         'time_step_seconds',
-        'time_steps',
         'model_number',
     ]
     

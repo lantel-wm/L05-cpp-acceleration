@@ -56,6 +56,9 @@ class ensembleFilter(ABC):
     save_observation = False            # save observations
     save_truth = False                  # save ground truth
     save_kalman_gain = False            # save kalman gain matrix
+    save_inflated_kalman_gain = False   # save inflated kalman gain matrix
+    save_localized_kalman_gain = False  # save localized kalman gain matrix
+    save_inflated_localized_kalman_gain = False # save inflated and localized kalman gain matrix
     save_prior_rmse = True              # save prior rmse with time
     save_analysis_rmse = True           # save analysis rmse with time
     save_prior_spread_rmse = True       # save prior spread rmse with time
@@ -92,6 +95,9 @@ class ensembleFilter(ABC):
         'save_observation',
         'save_truth',
         'save_kalman_gain',
+        'save_inflated_kalman_gain',
+        'save_localized_kalman_gain',
+        'save_inflated_localized_kalman_gain',
         'save_prior_rmse',
         'save_analysis_rmse',
         'save_prior_spread_rmse',
@@ -158,6 +164,9 @@ class ensembleFilter(ABC):
             self.zens_analy = np.zeros((self.nobstime, self.ensemble_size, self.model_size)) if self.save_analysis_ensemble else None
             self.analy = np.zeros((self.nobstime, self.model_size))
             self.kg_series = np.zeros((self.nobstime, self.model_size, self.nobsgrid)) if self.save_kalman_gain else None
+            self.kg_inf_series = np.zeros((self.nobstime, self.model_size, self.nobsgrid)) if self.save_inflated_kalman_gain else None
+            self.kg_loc_series = np.zeros((self.nobstime, self.model_size, self.nobsgrid)) if self.save_localized_kalman_gain else None
+            self.kg_inf_loc_series = np.zeros((self.nobstime, self.model_size, self.nobsgrid)) if self.save_inflated_localized_kalman_gain else None
             self.prior_rmse = np.zeros(self.nobstime) if self.save_prior_rmse else None
             self.analy_rmse = np.zeros(self.nobstime) if self.save_analysis_rmse else None
             self.prior_spread = np.zeros((self.nobstime, self.model_size))
@@ -170,7 +179,7 @@ class ensembleFilter(ABC):
 
 
     # public methods    
-    def inflation(self, zens: np.mat) -> np.mat:
+    def inflate(self, zens: np.mat) -> np.mat:
         """ inflation
 
         Args:
@@ -247,6 +256,21 @@ class ensembleFilter(ABC):
                     kg_save_path = os.path.join(data_save_path, kg_filename)
                     np.save(kg_save_path, self.kg_series)
                     
+                if self.save_inflated_kalman_gain:
+                    kg_filename = save_config['inflated_kalman_gain_filename'] + '.' + file_save_type
+                    kg_save_path = os.path.join(data_save_path, kg_filename)
+                    np.save(kg_save_path, self.kg_inf_series)
+                
+                if self.save_localized_kalman_gain:
+                    kg_filename = save_config['localized_kalman_gain_filename'] + '.' + file_save_type
+                    kg_save_path = os.path.join(data_save_path, kg_filename)
+                    np.save(kg_save_path, self.kg_loc_series)
+                    
+                if self.save_inflated_localized_kalman_gain:
+                    kg_filename = save_config['inflated_localized_kalman_gain_filename'] + '.' + file_save_type
+                    kg_save_path = os.path.join(data_save_path, kg_filename)
+                    np.save(kg_save_path, self.kg_inf_loc_series)
+                
                 if self.save_prior_rmse:
                     self.prior_rmse = np.sqrt(np.mean(np.square(self.prior - ztruth_total), axis=1))
                     prior_rmse_filename = save_config['prior_rmse_filename'] + '.' + file_save_type
@@ -292,7 +316,16 @@ class ensembleFilter(ABC):
             self.zens_analy[self.assimilation_step_counter - 1, :, :] = zens_analy
             
         if self.save_kalman_gain:
-            self.kg_series[self.assimilation_step_counter - 1, :, :] = self.calc_current_kalman_gain_matrix(zens_prior)
+            self.kg_series[self.assimilation_step_counter - 1, :, :] = self.calc_current_kalman_gain_matrix(zens_prior, 'kg')
+            
+        if self.save_inflated_kalman_gain:
+            self.kg_inf_series[self.assimilation_step_counter - 1, :, :] = self.calc_current_kalman_gain_matrix(zens_prior, 'kg_inf')
+            
+        if self.save_localized_kalman_gain:
+            self.kg_loc_series[self.assimilation_step_counter - 1, :, :] = self.calc_current_kalman_gain_matrix(zens_prior, 'kg_loc')
+            
+        if self.save_inflated_localized_kalman_gain:
+            self.kg_inf_loc_series[self.assimilation_step_counter - 1, :, :] = self.calc_current_kalman_gain_matrix(zens_prior, 'kg_inf_loc')
 
         self.analy[self.assimilation_step_counter - 1, :] = np.mean(zens_analy, axis=0)
         self.prior[self.assimilation_step_counter - 1, :] = np.mean(zens_prior, axis=0)
@@ -337,8 +370,20 @@ class ensembleFilter(ABC):
             self.save_single_npy_file('observation', data_save_path, zobs)
             
         if self.save_kalman_gain:
-            K = self.calc_current_kalman_gain_matrix(zens_prior)
+            K = self.calc_current_kalman_gain_matrix(zens_prior, 'kg')
             self.save_single_npy_file('kg', data_save_path, K)
+        
+        if self.save_inflated_kalman_gain:
+            K_inf = self.calc_current_kalman_gain_matrix(zens_prior, 'kg_inf')
+            self.save_single_npy_file('kg_inf', data_save_path, K_inf)
+        
+        if self.save_localized_kalman_gain:
+            K_loc = self.calc_current_kalman_gain_matrix(zens_prior, 'kg_loc')
+            self.save_single_npy_file('kg_loc', data_save_path, K_loc)
+            
+        if self.save_inflated_localized_kalman_gain:
+            K_inf_loc = self.calc_current_kalman_gain_matrix(zens_prior, 'kg_inf_loc')
+            self.save_single_npy_file('kg_inf_loc', data_save_path, K_inf_loc)
         
         
         self.save_single_npy_file('prior_mean', data_save_path, np.mean(zens_prior, axis=0))
@@ -348,30 +393,36 @@ class ensembleFilter(ABC):
         self.save_single_npy_file('prior_spread_rmse', data_save_path, self.calc_prior_spread_rmse(zens_prior))
         self.save_single_npy_file('analy_spread_rmse', data_save_path, self.calc_analysis_spread_rmse(zens_analy))
         
-            
         
-    def calc_current_kalman_gain_matrix(self, zens: np.mat) -> np.mat:
+    def calc_current_kalman_gain_matrix(self, zens_prior: np.mat, option: str) -> np.mat:
         """ calculate the current kalman gain matrix
 
         Args:
             zens_inf (np.mat): inflated state ensemble
+            option (str): 'kg', 'kg_inf', 'kg_loc', 'kg_inf_loc'
 
         Returns:
-            np.mat: current kalman gain matrix
+            tuple: kalman gain matrix, localized kalman gain matrix
         """
-        
-        rn = 1.0 / (self.ensemble_size - 1)
-        Xprime = zens - np.mean(zens, axis=0)
-        HXens = (self.Hk * zens.T).T
-        HXprime = HXens - np.mean(HXens, axis=0)
-        PbHt = (Xprime.T * HXprime) * rn
-        HPbHt = (HXprime.T * HXprime) * rn
-        K = PbHt * (HPbHt + self.R).I
-        if self.localization_method == "GC":
-            K = np.multiply(self.CMat.T, K)
-        elif self.localization_method == "CLF":
-            K = self._CLF(K)
-        return K
+        match option:
+            case 'kg':
+                K = self._zens2K(zens_prior)
+                return K
+            case 'kg_inf':
+                zens_inf = self.inflate(zens_prior)
+                K = self._zens2K(zens_inf)
+                return K
+            case 'kg_loc':
+                K = self._zens2K(zens_prior)
+                K = self._localize(K)
+                return K
+            case 'kg_inf_loc':
+                zens_inf = self.inflate(zens_prior)
+                K = self._zens2K(zens_inf)
+                K = self._localize(K)
+                return K
+            case _:
+                raise ValueError(f'Invalid option: {option}')
     
     
     def calc_prior_rmse(self, zens_prior: np.mat, z_truth: np.mat) -> float:
@@ -431,6 +482,43 @@ class ensembleFilter(ABC):
     
     
     # private methods
+    def _zens2K(self, zens: np.mat) -> np.mat:
+        """ calculate the kalman gain matrix from state ensemble
+
+        Args:
+            zens (np.mat): state ensemble
+
+        Returns:
+            np.mat: kalman gain matrix
+        """
+        rn = 1.0 / (self.ensemble_size - 1)
+        Xprime = zens - np.mean(zens, axis=0)
+        HXens = (self.Hk * zens.T).T
+        HXprime = HXens - np.mean(HXens, axis=0)
+        PbHt = (Xprime.T * HXprime) * rn
+        HPbHt = (HXprime.T * HXprime) * rn
+        K = PbHt * (HPbHt + self.R).I
+        
+        return K
+    
+    
+    def _localize(self, K: np.mat) -> np.mat:
+        """ localize the kalman gain matrix
+
+        Args:
+            K (np.mat): kalman gain matrix
+
+        Returns:
+            np.mat: localized kalman gain matrix
+        """
+        if self.localization_method == "GC":
+            K_loc = np.multiply(self.CMat.T, K)
+        elif self.localization_method == "CLF":
+            K_loc = self._CLF(K)
+        
+        return K_loc
+    
+    
     def __get_localization_matrix(self) -> np.mat:
         return construct_GC_2d(self.localization_radius, self.model_size, self.obs_grids)
     

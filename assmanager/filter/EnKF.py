@@ -46,12 +46,18 @@ class EnKF(ensembleFilter):
             return self.__parallel_update(zens, obs)
         
         
-    def inflation(self, zens: np.mat) -> np.mat:
-        return super().inflation(zens)
-        
+    def inflate(self, zens: np.mat) -> np.mat:
+        return super().inflate(zens)
+    
+    
+    def save_current_state(self, zens_prior: np.mat, zens_analy: np.mat, z_truth: np.mat) -> None:
+        return super().save_current_state(zens_prior, zens_analy, z_truth)
+    
+    def save_current_state_file(self, zens_prior: np.mat, zens_analy: np.mat, z_truth: np.mat, zobs: np.mat, data_save_path: str) -> None:
+        return super().save_current_state_file(zens_prior, zens_analy, z_truth, zobs, data_save_path)
             
-    def calc_current_kalman_gain_matrix(self, zens_inf: np.mat) -> np.mat:
-        return super().calc_current_kalman_gain_matrix(zens_inf)
+    def calc_current_kalman_gain_matrix(self, zens_inf: np.mat, option:str) -> np.mat:
+        return super().calc_current_kalman_gain_matrix(zens_inf, option)
     
     
     def calc_prior_rmse(self, zens_prior: np.mat, zt: np.mat) -> float:

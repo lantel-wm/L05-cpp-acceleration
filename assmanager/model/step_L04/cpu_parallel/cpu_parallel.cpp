@@ -6,6 +6,7 @@
 #include <vector>
 #include <queue>
 #include <condition_variable>
+#include "threadpool.hpp"
 
 namespace py = pybind11;
 
@@ -319,7 +320,7 @@ class LoadBalancer
 };
 
 
-py::array_t<double> step_L04(py::array_t<double> zens_np, py::array_t<double> a_np, int model_size, int ensemble_size, double smooth_steps, double ss2, double space_time_scale, double sts2, double coupling, double forcing, int K, int K2, int K4, int H, int model_number, double delta_t)
+py::array_t<double> step_L04_old(py::array_t<double> zens_np, py::array_t<double> a_np, int model_size, int ensemble_size, double smooth_steps, double ss2, double space_time_scale, double sts2, double coupling, double forcing, int K, int K2, int K4, int H, int model_number, double delta_t)
 {
     py::buffer_info zens_info = zens_np.request();
     py::buffer_info a_info = a_np.request();
@@ -359,8 +360,33 @@ py::array_t<double> step_L04(py::array_t<double> zens_np, py::array_t<double> a_
 }
 
 
+py::array_t<double> step_L04(py::array_t<double> zens_np, py::array_t<double> a_np, int model_size, int ensemble_size, double smooth_steps, double ss2, double space_time_scale, double sts2, double coupling, double forcing, int K, int K2, int K4, int H, int model_number, double delta_t)
+{
+    py::buffer_info zens_info = zens_np.request();
+    py::buffer_info a_info = a_np.request();
+
+    double *zens = (double *)zens_info.ptr;
+    double *a = (double *)a_info.ptr;
+
+    int num_threads = std::thread::hardware_concurrency();
+    std::threadpool pool(num_threads + 1);
+    
+    for (int iens = 0; iens < ensemble_size; iens++)
+    {
+        pool.commit(step_L04_single, 
+            zens + iens * model_size, a, 
+            model_size, smooth_steps, ss2, 
+            space_time_scale, sts2, coupling, forcing, 
+            K, K2, K4, H, model_number, delta_t
+            );       
+    }
+
+    return zens_np;
+}
+
+
 PYBIND11_MODULE(cpu_parallel, m)
 {
     m.doc() = "step_L04 cpp extension, cpu version, multi-threaded";
-    m.def("step_L04", &step_L04, "step_L04 function");
+    m.def("step_L04", &step_L04_old, "step_L04 function");
 }

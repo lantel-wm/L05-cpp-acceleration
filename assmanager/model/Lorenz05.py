@@ -1,6 +1,6 @@
 import numpy as np
 from numba import jit, njit, prange
-from .step_L04 import cpu
+# from .step_L04 import cpu
 
 
 class Lorenz05:
