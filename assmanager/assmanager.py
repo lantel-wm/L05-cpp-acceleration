@@ -102,110 +102,37 @@ class AssManager:
             "analysis_rmse_filename": "analy_rmse",
             "prior_spread_rmse_filename": "prior_spread_rmse",
             "analysis_spread_rmse_filename": "analy_spread_rmse"
-        }
+        },
     }
     
+    
     def __init__(self, config = 'config.ini') -> None:
-        
         # load config file
-        if type(config) not in [str, dict]:
-            raise ValueError(f'Invalid config type {type(config)}, must be str or dict')
+        self.config = self._load_config(config)
         
-        # load config file
-        if type(config) == str:
-            if not os.path.exists(config):
-                raise ValueError(f'Invalid config path {config}, file not exists')
-        
-            with open(config, 'r') as f:
-                conpar = configparser.ConfigParser()
-                conpar.optionxform = lambda option: option
-                conpar.read(config)
-                
-            self._check_config_file(conpar, config)
-            
-            self.config = {s:dict(self._type_recovery(conpar.items(s))) for s in conpar.sections()}
-        
-        # load config dict
-        elif type(config) == dict:
-            self._check_config_dict(config)
-            
-            # with open('config.ini', 'r') as f:
-            #     conpar = configparser.ConfigParser()
-            #     conpar.optionxform = lambda option: option
-            #     conpar.read('config.ini')
-            
-            # load default config
-            # self.config = {s:dict(self.__type_recovery(conpar.items(s))) for s in conpar.sections()}
-            self.config = deepcopy(self.default_config)
-            # overwrite default config
-            for section in config:
-                for option in config[section]:
-                    self.config[section][option] = config[section][option]
-        
-        # print(json.dumps(self.config, indent=4))
         self.verbose = self.config['Experiment_option']['verbose']
         if self.verbose:
             self._show_logo()
-            
         
         # load model and filter
-        self.advancement = self.config['model_params']['advancement']
-        if self.advancement == 'cpu_parallel':
-            self.model = Lorenz05_cpu_parallel(self.config['model_params'])
-        elif self.advancement == 'unet':
-            self.model = Lorenz05_unet(self.config['model_params'])
-        elif self.advancement == 'default':
-            self.model = Lorenz05(self.config['model_params'])
-        else:
-            raise ValueError(f'Invalid model advancement {self.advancement}')
+        advancement = self.config['model_params']['advancement']
+        self.model = self._load_model(advancement)
+        self.filter = self._load_filter(self.config['DA_config']['filter'])
         
-        self.filter = self._select_filter(self.config['DA_config']['filter'])
-        
-        # load data
-        zics_total, zobs_total, ztruth_total = self._load_data()     
-        
-        # set intial conditions
-        ensemble_size = self.config['DA_config']['ensemble_size']
-        ics_imem_beg = self.config['IC_data']['ics_imem_beg'] # initial condition ensemble member id begin
-        ics_imem_end = ics_imem_beg + ensemble_size # initial condition ensemble member id end
-        self.zens = np.mat(zics_total[ics_imem_beg:ics_imem_end, :]) # ic
-        
-        # set observations
-        time_steps = self.config['DA_params']['time_steps']
-        obs_freq_timestep = self.config['DA_params']['obs_freq_timestep']
-        # iobs_beg = int(23 * 360 * 200 / obs_freq_timestep)
-        iobs_beg = 0
-        iobs_end = iobs_beg + int(time_steps / obs_freq_timestep) + 1
-        self.zobs_total = np.mat(zobs_total[iobs_beg:iobs_end, :]) # obs
-        if self.zobs_total.shape[1] == self.model.model_size:
-            self.zobs_total = self.zobs_total * self.filter.Hk.T
-        
-        # set truth
-        # itruth_beg = int(23 * 360 * 200 / obs_freq_timestep)
-        itruth_beg = 0
-        itruth_end = itruth_beg + int(time_steps / obs_freq_timestep) + 1
-        self.ztruth_total = np.mat(ztruth_total[itruth_beg:itruth_end, :]) # truth
-        
-        self.zt = self.ztruth_total * self.filter.Hk.T
-        self.obs_error_std = np.std(self.zt - self.zobs_total)
+        # load data and set initial condition, observations and truth
+        zics_total, zobs_total, ztruth_total = self._load_data()
+        self._set_ic(zics_total)        
+        self._set_obs(zobs_total)
+        self._set_truth(ztruth_total)
         
         # record initial state
-        self.initial_state = {
-            'zens.shape': str(self.zens.shape),
-            'zics_total.shape': str(zics_total.shape),
-            'zobs_total.shape': str(self.zobs_total.shape),
-            'ztruth_total.shape': str(self.ztruth_total.shape),
-            'Hk.shape': str(self.filter.Hk.shape),
-            'obs_error_std': self.obs_error_std,
-            'total_DA_cycles': self.filter.nobstime,
-            'model_grids': str(self.filter.model_grids[:5].T.tolist()) + '...' + str(self.filter.model_grids[-5:].T.tolist()),
-            'obs_grids': str(self.filter.obs_grids[:5].T.tolist()) + '...' + str(self.filter.obs_grids[-5:].T.tolist()),
-        }
+        self._set_initial_state()
         
         # load file save option
         self.file_save_option = self.config['DA_option']['file_save_option']
         if self.file_save_option not in ['single_file', 'multiple_files']:
             raise ValueError(f'Invalid file save option "{self.file_save_option}", must be "single_file" or "multiple_files"')
+        
         
     # public methods
     def run(self) -> None:
@@ -255,7 +182,6 @@ class AssManager:
                 
             elif self.file_save_option == 'multiple_files':
                 self.filter.save_current_state_file(zens_prior, zens_analy, z_truth, zobs, self.result_save_path)
-    
             
             # advance model
             # parallel_step_forward(pool, num_process, self.zens, self.filter.obs_freq_timestep, self.model)
@@ -266,9 +192,6 @@ class AssManager:
                 for _ in range(self.filter.obs_freq_timestep):
                     self.zens = self.model.step_L04(self.zens)
             # print(f'advance model time: {time.time() - t1}')
-        
-        # pool.close()
-        # pool.join()
         
         if self.file_save_option == 'single_file':
             self.result_save_path = os.path.join(self.config['Experiment_option']['result_save_path'], self.config['Experiment_option']['experiment_name'])
@@ -377,10 +300,72 @@ class AssManager:
             elif self._is_legal_expr(value):
                 yield key, eval_expr(value)
             else:
-                yield key, value     
+                yield key, value
+                
+                
+    def _load_config(self, config):
+        """ load config
+
+        Args:
+            config (str or dict): config file path or config dict
+
+        Raises:
+            ValueError: Invalid config type
+            ValueError: Invalid config path
+        """
+        if type(config) not in [str, dict]:
+            raise ValueError(f'Invalid config type {type(config)}, must be str or dict')
+        if type(config) == str:
+            if not os.path.exists(config):
+                raise ValueError(f'Invalid config path {config}, file not exists')
+        
+            with open(config, 'r') as f:
+                conpar = configparser.ConfigParser()
+                conpar.optionxform = lambda option: option
+                conpar.read(config)
+                
+            self._check_config_file(conpar, config)
+            
+            self.config = {s:dict(self._type_recovery(conpar.items(s))) for s in conpar.sections()}
+        
+        # load config dict
+        elif type(config) == dict:
+            self._check_config_dict(config)
+            
+            # with open('config.ini', 'r') as f:
+            #     conpar = configparser.ConfigParser()
+            #     conpar.optionxform = lambda option: option
+            #     conpar.read('config.ini')
+            
+            # load default config
+            # self.config = {s:dict(self.__type_recovery(conpar.items(s))) for s in conpar.sections()}
+            self.config = deepcopy(self.default_config)
+            # overwrite default config
+            for section in config:
+                for option in config[section]:
+                    self.config[section][option] = config[section][option]
+                    
+                    
+    def _load_model(self, advancement: str):
+        """ load model
+
+        Args:
+            advancement (str): model advancement
+
+        Raises:
+            ValueError: Invalid model advancement
+        """
+        if advancement == 'cpu_parallel':
+            return Lorenz05_cpu_parallel(self.config['model_params'])
+        elif advancement == 'unet':
+            return Lorenz05_unet(self.config['model_params'])
+        elif advancement == 'default':
+            return Lorenz05(self.config['model_params'])
+        else:
+            raise ValueError(f'Invalid model advancement {self.advancement}')
     
                 
-    def _select_filter(self, filter_name:str):
+    def _load_filter(self, filter_name:str):
         """ select the filter
 
         Args:
@@ -400,7 +385,7 @@ class AssManager:
             raise ValueError(f'Invalid filter name {filter_name}')
     
     
-    def _load_data(self):
+    def _load_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """ load data
 
         Returns:
@@ -422,6 +407,76 @@ class AssManager:
         
         return zics_total, zobs_total, ztruth_total
     
+    
+    def _set_ic(self, zics_total:np.ndarray):
+        """ set initial condition
+
+        Args:
+            zics_total (np.ndarray): initial condition
+
+        Returns:
+            np.mat: initial condition
+        """
+        ensemble_size = self.config['DA_config']['ensemble_size']
+        ics_imem_beg = self.config['IC_data']['ics_imem_beg'] # initial condition ensemble member id begin
+        ics_imem_end = ics_imem_beg + ensemble_size # initial condition ensemble member id end
+        self.zens = np.mat(zics_total[ics_imem_beg:ics_imem_end, :]) # ic
+    
+    
+    def _set_obs(self, zobs_total:np.ndarray):
+        """ set observations
+
+        Args:
+            zobs_total (np.ndarray): observations
+
+        Returns:
+            np.ndarray: observations
+        """
+        time_steps = self.config['DA_params']['time_steps']
+        obs_freq_timestep = self.config['DA_params']['obs_freq_timestep']
+        # iobs_beg = int(23 * 360 * 200 / obs_freq_timestep)
+        iobs_beg = 0
+        iobs_end = iobs_beg + int(time_steps / obs_freq_timestep) + 1
+        self.zobs_total = np.mat(zobs_total[iobs_beg:iobs_end, :]) # obs
+        if self.zobs_total.shape[1] == self.model.model_size:
+            self.zobs_total = self.zobs_total * self.filter.Hk.T
+    
+    
+    def _set_truth(self, ztruth_total:np.ndarray):
+        """ set truth
+
+        Args:
+            ztruth_total (np.ndarray): truth
+
+        Returns:
+            np.ndarray: truth
+        """
+        time_steps = self.config['DA_params']['time_steps']
+        obs_freq_timestep = self.config['DA_params']['obs_freq_timestep']
+        # itruth_beg = int(23 * 360 * 200 / obs_freq_timestep)
+        itruth_beg = 0
+        itruth_end = itruth_beg + int(time_steps / obs_freq_timestep) + 1
+        self.ztruth_total = np.mat(ztruth_total[itruth_beg:itruth_end, :]) # truth
+        
+        self.zt = self.ztruth_total * self.filter.Hk.T
+        self.obs_error_std = np.std(self.zt - self.zobs_total)
+        
+        
+    def _set_initial_state(self):
+        """ set initial state
+        """
+        self.initial_state = {
+            'zens.shape': str(self.zens.shape),
+            'zics_total.shape': str(zics_total.shape),
+            'zobs_total.shape': str(self.zobs_total.shape),
+            'ztruth_total.shape': str(self.ztruth_total.shape),
+            'Hk.shape': str(self.filter.Hk.shape),
+            'obs_error_std': self.obs_error_std,
+            'total_DA_cycles': self.filter.nobstime,
+            'model_grids': str(self.filter.model_grids[:5].T.tolist()) + '...' + str(self.filter.model_grids[-5:].T.tolist()),
+            'obs_grids': str(self.filter.obs_grids[:5].T.tolist()) + '...' + str(self.filter.obs_grids[-5:].T.tolist()),
+        }
+        
     
     def _show_logo(self) -> None:
         print('''
