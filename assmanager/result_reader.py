@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import configparser
 import numpy as np
 import os
+from copy import deepcopy
 
 # default_config = {
 #     "model_params": {
@@ -90,7 +92,7 @@ import os
 class ResultReader:
     def __init__(self, exp_path: str) -> None:
         self.exp_path = exp_path
-        self.config
+        self.config = self._load_config(os.path.join(exp_path, 'config.ini'))
         self.data_path = self._get_data_path()
         
     
@@ -140,5 +142,48 @@ class ResultReader:
                 data[i] = np.load(os.path.join(data_path, f'{i}.npy'))
             
         return data
+    
+    
+    def _load_config(self, config):
+        """ load config
+
+        Args:
+            config (str or dict): config file path or config dict
+
+        Raises:
+            ValueError: Invalid config type
+            ValueError: Invalid config path
+        """
+        if type(config) not in [str, dict]:
+            raise ValueError(f'Invalid config type {type(config)}, must be str or dict')
+        if type(config) == str:
+            if not os.path.exists(config):
+                raise ValueError(f'Invalid config path {config}, file not exists')
+        
+            with open(config, 'r') as f:
+                conpar = configparser.ConfigParser()
+                conpar.optionxform = lambda option: option
+                conpar.read(config)
+                
+            self._check_config_file(conpar, config)
+            
+            self.config = {s:dict(self._type_recovery(conpar.items(s))) for s in conpar.sections()}
+        
+        # load config dict
+        elif type(config) == dict:
+            self._check_config_dict(config)
+            
+            # with open('config.ini', 'r') as f:
+            #     conpar = configparser.ConfigParser()
+            #     conpar.optionxform = lambda option: option
+            #     conpar.read('config.ini')
+            
+            # load default config
+            # self.config = {s:dict(self.__type_recovery(conpar.items(s))) for s in conpar.sections()}
+            self.config = deepcopy(self.default_config)
+            # overwrite default config
+            for section in config:
+                for option in config[section]:
+                    self.config[section][option] = config[section][option]
         
     

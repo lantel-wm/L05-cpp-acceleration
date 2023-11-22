@@ -2,7 +2,6 @@ import ast
 import time
 import configparser
 import json
-import multiprocessing
 import operator as op
 import os
 
@@ -417,6 +416,7 @@ class AssManager:
         Returns:
             np.mat: initial condition
         """
+        self.zics_total = zics_total
         ensemble_size = self.config['DA_config']['ensemble_size']
         ics_imem_beg = self.config['IC_data']['ics_imem_beg'] # initial condition ensemble member id begin
         ics_imem_end = ics_imem_beg + ensemble_size # initial condition ensemble member id end
@@ -467,7 +467,7 @@ class AssManager:
         """
         self.initial_state = {
             'zens.shape': str(self.zens.shape),
-            'zics_total.shape': str(zics_total.shape),
+            'zics_total.shape': str(self.zics_total.shape),
             'zobs_total.shape': str(self.zobs_total.shape),
             'ztruth_total.shape': str(self.ztruth_total.shape),
             'Hk.shape': str(self.filter.Hk.shape),
